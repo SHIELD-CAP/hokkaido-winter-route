@@ -44,11 +44,11 @@ RULES_MSM = [  # (名称, 3 小时门槛, 6 小时门槛)，任一条达到就�
 RULES_OBS = [('3h≥5（R9）', 5, None), ('3h≥6', 6, None), ('3h≥7 或 6h≥10', 7, 10), ('3h≥4.5 或 6h≥6', 4.5, 6)]
 
 
-def labels():
+def labels(col='一日游高速段封路'):
     L = {}
     with open(ROOT / 'data' / 'labels.csv', encoding='utf-8') as f:
         for r in csv.DictReader(f):
-            L[r['日期']] = (r['逐日核对'], r['一日游高速段封路'])
+            L[r['日期']] = (r['逐日核对'], r[col])
     return L
 
 
@@ -196,6 +196,10 @@ def obs_part(L):
                 c, a = L.get(d_, ('否', '不详'))
                 allw.append(f"{d_[2:]}（{m3:.1f} mm；{'封' if a == '是' else ('没封' if c == '是' else '标签不详')}）")
         md.append(f'回测范围内{name}全天 3 小时冷降水 ≥5 mm 的日子：' + ('、'.join(allw) or '无'))
+        if fn.startswith('sapporo'):
+            LB = labels('机场线高速段封路')
+            md.append(f'#### {name}对机场线高速段\n\n同样的门槛，对的是机场线（札樽道、道央道札幌JCT—新千歳空港IC）有没有封路，'
+                      f'机场线封路 {n_closed(LB)} 天（含只有夜间除雪封闭的日子）。\n\n' + table(score(res_days, LB, RULES_OBS), n_closed(LB)))
         js[name] = {'rules': res, 'days': {k: [round(v[0], 1), round(v[1], 1)] for k, v in res_days.items()}}
     return '\n\n'.join(md), js
 
@@ -260,7 +264,10 @@ def msm_part(L):
 
     closed = n_closed(L)
     md, js = [], {'url': url, 'grid': {n: {'lat': s[2], 'lon': s[3], 'missing_hours': s[4]} for n, s in series.items()}}
-    for set_name, names in (('生产用的 9 个格点（P9）', list(P9)), ('第一次回测的 8 个格点（OLD8）', list(OLD8))):
+    sets = (('生产用的 9 个格点（P9）', list(P9)), ('第一次回测的 8 个格点（OLD8）', list(OLD8)),
+            ('P9 去掉④深川（8 个格点）', [n for n in P9 if not n.startswith('A4')]),
+            ('P9 去掉①札幌、④深川（7 个格点）', [n for n in P9 if not n.startswith(('A1', 'A4'))]))
+    for set_name, names in sets:
         for mode, mode_name in (('all', '全天口径'), ('trip', '行程口径')):
             days, arg = set_days(names, mode)
             res = score(days, L, RULES_MSM)
