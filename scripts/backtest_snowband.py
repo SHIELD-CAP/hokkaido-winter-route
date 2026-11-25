@@ -20,7 +20,7 @@
       python3 scripts/backtest_snowband.py --obs-only （只跑第一段）
 输出：data/backtest/snowband_2025-26.md、data/backtest/snowband_2025-26.json
 """
-import csv, datetime as dt, json, pathlib, sys, time, urllib.request, urllib.parse
+import csv, datetime as dt, gzip, json, pathlib, sys, time, urllib.request, urllib.parse
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / 'data' / 'backtest'
@@ -37,6 +37,8 @@ P9 = {
 OLD8 = {k: P9[k] for k in ('A1 札幌', 'A2 岩見沢', 'A3 砂川・滝川', 'A4 深川')}
 OLD8.update({'EH 江別東附近': (43.13, 141.60), 'KZ 江別東—岩見沢附近': (43.16, 141.70),
              'BB 美唄附近': (43.33, 141.86), 'NS 奈井江砂川附近': (43.43, 141.88)})
+
+RET5 = ['A1 札幌', 'A2 岩見沢', 'E1 江別東IC', 'E2 江別東IC—岩見沢IC 之间', 'E3 三笠IC']  # 回程（三笠IC→札幌）只看这 5 个点
 
 RULES_MSM = [  # (名称, 3 小时门槛, 6 小时门槛)，任一条达到就算亮
     ('3h≥6', 6, None), ('3h≥7 或 6h≥10（R8）', 7, 10), ('3h≥8 或 6h≥12', 8, 12),
@@ -122,6 +124,15 @@ def day_max(s3, s6, d, mode):
         for t, v in s6.items():
             if t - dt.timedelta(hours=5) >= a and t <= b:
                 m6 = max(m6, v)
+    return m3, m6
+
+
+def win_max(s3, s6, d, a_h, b_h):
+    """d 当天、结束时刻在 a_h+2 时到 b_h 时之间的 3 小时窗口（6 小时窗口为 a_h+5 时到 b_h 时）的最大值；
+    a_h 可为负，表示前一天。与行程口径一致：(4, 11) 即 03–11 时。"""
+    base = dt.datetime(d.year, d.month, d.day)
+    m3 = max((s3.get(base + dt.timedelta(hours=h), 0) for h in range(a_h + 2, b_h + 1)), default=0)
+    m6 = max((s6.get(base + dt.timedelta(hours=h), 0) for h in range(a_h + 5, b_h + 1)), default=0)
     return m3, m6
 
 
@@ -247,6 +258,15 @@ def msm_part(L):
                     continue
                 cold[name][dt.datetime.fromisoformat(t)] = p if T <= COLD else 0.0
     url = ' ; '.join(urls)
+    dump = {}
+    for name in pts:
+        ts = sorted(cold[name])
+        dump[name] = {'start': ts[0].isoformat() if ts else None,
+                      'hours': {t.isoformat(timespec='hours'): round(v, 2) for t, v in cold[name].items() if v}}
+        dump[name]['n_hours'] = len(ts)
+    with gzip.open(OUT / 'msm_prev_day1_cold_hourly.json.gz', 'wt', encoding='utf-8') as f:
+        json.dump({'note': '前一天那一轮 MSM 在各格点的逐时冷降水（气温 ≤0.5 ℃ 的小时的降水，mm；为 0 的小时不列），时刻为该小时结束的东京时间',
+                   'points': dump}, f, ensure_ascii=False)
     series = {}
     for name in pts:
         series[name] = (rolling(cold[name], 3), rolling(cold[name], 6), meta[name][0], meta[name][1], meta[name][2])
@@ -290,6 +310,29 @@ def msm_part(L):
                         c, a = L.get(k, ('否', '不详'))
                         lines.append(f"{k[2:]}（3h {m3:.1f}／6h {m6:.1f} mm，{arg[k]}；{'封' if a == '是' else ('没封' if c == '是' else '标签不详')}）")
                 md.append('回测范围内 P9 全天口径达到 R8 降水门槛的日子：' + ('、'.join(lines) or '无'))
+    # 时间窗对照：同样的门槛，取信号的时间窗不同，分别对全天标签和行程时段标签
+    LT = labels('一日游行程时段封路')
+    variants = [
+        ('现行：去程 03–11 时、回程 13–20 时（段前 6 小时）', (4, 11), (14, 20)),
+        ('加长：去程从前一天 18 时到 11 时，回程 05–20 时', (-5, 11), (6, 20)),
+        ('全天：结束于当天 1–24 时的窗口（与全天口径相同，回程不单列）', (-1, 24), None),
+    ]
+    rows = ['| 时间窗 | 门槛 | 对照的标签 | 亮的天数 | 其中封路 | 没封路 | 漏掉的封路日 |', '|---|---|---|---|---|---|---|']
+    js['windows'] = {}
+    for vname, wout, wret in variants:
+        sig = {}
+        for d in season_days(L):
+            o = [win_max(series[n][0], series[n][1], d, *wout) for n in P9]
+            r = [win_max(series[n][0], series[n][1], d, *wret) for n in RET5] if wret else []
+            sig[d.isoformat()] = (max(v[0] for v in o + r), max(v[1] for v in o + r))
+        for rname, r3, r6 in (('R8 3h≥7 或 6h≥10', 7, 10), ('O9 3h≥4.5 或 6h≥6', 4.5, 6)):
+            for lname, LL in (('全天封路', L), ('行程时段封路', LT)):
+                res = score(sig, LL, [(rname, r3, r6)])[0]
+                rows.append(f"| {vname} | {rname} | {lname} | {res['fired']} | {res['hit']} | {res['false']} | "
+                            f"{res['missed']}／{n_closed(LL)}（{'、'.join(res['missed_days']) or '无'}） |")
+                js['windows'][f'{vname}|{rname}|{lname}'] = res
+    md.append('### 取信号的时间窗对照（去程看 P9 九个点，回程看三笠IC 到札幌五个点）\n\n'
+              '行程时段封路指去程高速 09–11 时北行、回程高速 19–20 时三笠IC 以南南行有天气类封闭在生效。\n\n' + '\n'.join(rows))
     # 单点：每个格点单独当一条规则（R8 门槛、全天口径）
     single = ['| 格点 | 实际网格中心 | 亮的天数 | 其中封路 | 没封路 |', '|---|---|---|---|---|']
     for n in pts:
