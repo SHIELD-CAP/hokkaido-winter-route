@@ -8,6 +8,8 @@
 - 机场线高速段：道央道 新千歳空港IC—札幌JCT，札樽道 小樽IC—札幌JCT 全段。
 - 某天“封路”指当天任何时刻有封闭在生效，包括前一天起的封闭延续到当天、当天解除的封闭。
 - 汇总帖（类型记为 ?）只作参考，不改状态。
+- 一日游行程时段封路：去程高速 09–11 时（札幌IC→旭川鷹栖IC，北行）或回程高速 19–20 时（三笠IC→札幌IC，南行）
+  有天气类封闭在生效。要逐条按时刻算，所以只有 data/source/ 里有原文的日子才有这一列。
 
 用法：
   python3 scripts/labels/x_labels.py                 列出每天的结果，并和 labels.csv 对照，报告不一致的日子
@@ -30,6 +32,10 @@ POS = {'道央': {n: i for i, n in enumerate(DOO)}, '札樽': {n: i for i, n in 
 A_UNITS = {('道央', i) for i in range(POS['道央']['札幌IC'], POS['道央']['旭川鷹栖IC'])}
 B_UNITS = {('道央', i) for i in range(POS['道央']['新千歳空港IC'], POS['道央']['札幌JCT'])} | \
           {('札樽', i) for i in range(len(SATO) - 1)}
+# 行程时段（与网站一致）：去程高速 09–11 时，札幌IC→旭川鷹栖IC 北行；回程高速 19–20 时，三笠IC→札幌IC 南行
+TRIP_COL = '一日游行程时段封路'
+TRIP = [({('道央', i) for i in range(POS['道央']['札幌IC'], POS['道央']['旭川鷹栖IC'])}, '+', 9, 11),
+        ({('道央', i) for i in range(POS['道央']['札幌IC'], POS['道央']['三笠IC'])}, '-', 19, 20)]
 WEATHER = re.compile('吹雪|除雪|雪|視界|凍結')
 LINE = re.compile(r'^(\d{4}-\d\d-\d\d \d\d:\d\d) (\S+) (.*?) \| (.*)$')
 PAIR = re.compile(r'([^,⇔⇒()]+?)([⇔⇒])([^,⇔⇒()]+?)(?:\(([^)]*)\))?(?=,|$)')
@@ -83,13 +89,21 @@ def simulate(ev, cover):
     每个覆盖段开始时状态清零：段前已经在封、段内才解除的封闭，靠“当天有解除”记上。"""
     warn = set()
     state = collections.defaultdict(set)
+    since, spans = {}, collections.defaultdict(list)  # 天气类封闭的起点；每段（道路、小段、方向）的封闭区间
     by_day = collections.defaultdict(list)
     for e in ev:
         by_day[e['t'].date()].append(e)
     days = {}
     alld = sorted({x for a, b in cover for x in (a + dt.timedelta(days=k) for k in range((b - a).days + 1))})
+    def close_all(t):
+        for k, t0 in since.items():
+            spans[k].append((t0, t))
+        since.clear()
+
     for d in alld:
+        d0 = dt.datetime.combine(d, dt.time())
         if d - dt.timedelta(days=1) not in days:
+            close_all(d0)
             state.clear()
         v = days[d] = {'A': False, 'B': False, 'A_ev': [], 'B_ev': []}
         open_units = {(r, i) for (r, i, s), c in state.items() if 'W' in c}
@@ -105,20 +119,38 @@ def simulate(ev, cover):
                 for u in us:
                     for s in ds:
                         k = (u[0], u[1], s)
+                        was = 'W' in state[k]
                         if e['type'] == '開始':
                             state[k].add(newc)
                         elif e['type'] == '解除':
+                            if newc == 'W' and not was:
+                                spans[k].append((d0, e['t']))  # 不知道何时封上的：按当天 0 时起算
                             state[k].discard(newc)
                         else:
                             if oldc:
                                 state[k].discard(oldc)
                             state[k].add(newc)
+                        now = 'W' in state[k]
+                        if now and not was:
+                            since[k] = e['t']
+                        elif was and not now:
+                            spans[k].append((since.pop(k), e['t']))
                     touched.add(u)
             if 'W' in (newc, oldc):
                 if touched & A_UNITS:
                     v['A'] = True; v['A_ev'].append(e['raw'])
                 if touched & B_UNITS:
                     v['B'] = True; v['B_ev'].append(e['raw'])
+    if alld:
+        close_all(dt.datetime.combine(alld[-1] + dt.timedelta(days=1), dt.time()))
+    for d, v in days.items():
+        hit = False
+        for units, sign, h0, h1 in TRIP:
+            w0, w1 = dt.datetime.combine(d, dt.time(h0)), dt.datetime.combine(d, dt.time(h1))
+            for (road, i, s_), iv in spans.items():
+                if s_ == sign and (road, i) in units and any(a < w1 and b > w0 for a, b in iv):
+                    hit = True
+        v['trip'] = hit
     return days, warn
 
 
@@ -136,15 +168,18 @@ def main():
                 if d not in days:
                     sys.exit(f'{d} 没有帖子覆盖，先补 data/source/')
                 if d.isoformat() not in have:
-                    rows.append({'日期': d.isoformat(), '逐日核对': '是', '一日游高速段封路': '', '机场线高速段封路': '', '备注': ''})
+                    rows.append({'日期': d.isoformat(), '逐日核对': '是', '一日游高速段封路': '', '机场线高速段封路': '', TRIP_COL: '', '备注': ''})
                 d += dt.timedelta(days=1)
         for r in rows:
+            r.setdefault(TRIP_COL, '')
             d = dt.date.fromisoformat(r['日期'])
             if any(a <= d <= b for a, b in spans):
                 r['逐日核对'], r['一日游高速段封路'], r['机场线高速段封路'] = '是', yn(days[d]['A']), yn(days[d]['B'])
+                r[TRIP_COL] = yn(days[d]['trip'])
         rows.sort(key=lambda r: r['日期'])
+        fields = ['日期', '逐日核对', '一日游高速段封路', '机场线高速段封路', TRIP_COL, '备注']
         buf = io.StringIO()
-        w = csv.DictWriter(buf, fieldnames=list(rows[0].keys()), lineterminator='\n')
+        w = csv.DictWriter(buf, fieldnames=fields, lineterminator='\n')
         w.writeheader(); w.writerows(rows)
         lp.write_text(buf.getvalue(), encoding='utf-8')
         print('已写入', lp)
@@ -154,10 +189,11 @@ def main():
         d = dt.date.fromisoformat(r['日期'])
         if r['逐日核对'] != '是' or d not in days:
             continue
-        got = (yn(days[d]['A']), yn(days[d]['B']))
-        if got != (r['一日游高速段封路'], r['机场线高速段封路']):
+        got = (yn(days[d]['A']), yn(days[d]['B']), yn(days[d]['trip']))
+        have = (r['一日游高速段封路'], r['机场线高速段封路'], r.get(TRIP_COL) or got[2])
+        if got != have:
             bad += 1
-            print(f"不一致 {d}: labels.csv 一日游={r['一日游高速段封路']} 机场线={r['机场线高速段封路']}；X 帖 一日游={got[0]} 机场线={got[1]}")
+            print(f"不一致 {d}: labels.csv 一日游={have[0]} 机场线={have[1]} 行程时段={have[2]}；X 帖 {got[0]} {got[1]} {got[2]}")
     print(f'对照完毕：帖子覆盖 {len(days)} 天，labels.csv 里逐日核对过、又有帖子覆盖的日子中 {bad} 天不一致。')
     for w_ in sorted(warn):
         print(w_, file=sys.stderr)

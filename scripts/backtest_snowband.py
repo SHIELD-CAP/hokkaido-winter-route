@@ -12,7 +12,8 @@
   气温都 ≤0.5 ℃，有一小时更暖，这个窗口就记 0。
 - 3 小时、6 小时合计按“该小时结束的时刻”滑动，全部用东京时间。
 - 全天口径：当天 01:00～次日 00:00 结束的各个窗口里取最大值。
-- 行程口径：去程高速 09–11 时和回程高速 19–20 时，各自往前多看 6 小时（03–11 时、13–20 时），只取完全落在里面的窗口。
+- 行程口径：去程高速 09–11 时和回程高速 19–20 时，各自往前多看 6 小时（03–11 时、13–20 时），只取完全落在里面的窗口；
+  对照的标签也换成 labels.csv 的“一日游行程时段封路”（这两个时段里有没有封），不是全天。
 - 第二段只回测降水量这一半；R8 另一半“气象厅给了雪的信号”，去年冬天的气象厅产品没有存档，回测不了。
 
 用法：python3 scripts/backtest_snowband.py            （两段都跑，要能连 previous-runs-api.open-meteo.com）
@@ -45,10 +46,12 @@ RULES_OBS = [('3h≥5（R9）', 5, None), ('3h≥6', 6, None), ('3h≥7 或 6h�
 
 
 def labels(col='一日游高速段封路'):
+    """{日期: (逐日核对, 该列的值)}；该列空着的日子当作没核对。"""
     L = {}
     with open(ROOT / 'data' / 'labels.csv', encoding='utf-8') as f:
         for r in csv.DictReader(f):
-            L[r['日期']] = (r['逐日核对'], r[col])
+            v = r.get(col) or ''
+            L[r['日期']] = (r['逐日核对'] if v else '否', v or '不详')
     return L
 
 
@@ -270,8 +273,15 @@ def msm_part(L):
     for set_name, names in sets:
         for mode, mode_name in (('all', '全天口径'), ('trip', '行程口径')):
             days, arg = set_days(names, mode)
-            res = score(days, L, RULES_MSM)
-            md.append(f'### {set_name}，{mode_name}\n\n' + table(res, closed))
+            if mode == 'trip':
+                # 行程口径对的是“行程时段（去程 09–11 时、回程 19–20 时）有没有封”，不是全天
+                LT = labels('一日游行程时段封路')
+                res = score(days, LT, RULES_MSM)
+                md.append(f'### {set_name}，{mode_name}\n\n对照的是行程时段有没有封（去程高速 09–11 时北行、回程高速 19–20 时三笠IC 以南南行），'
+                          f'这样封路的日子有 {n_closed(LT)} 天（逐日核对、又有帖子原文可按时刻算的 {n_checked(LT)} 天里）。\n\n' + table(res, n_closed(LT)))
+            else:
+                res = score(days, L, RULES_MSM)
+                md.append(f'### {set_name}，{mode_name}\n\n' + table(res, closed))
             js[f'{set_name}|{mode}'] = {'rules': res, 'days': {k: [round(v[0], 1), round(v[1], 1), arg[k]] for k, v in days.items()}}
             if names == list(P9) and mode == 'all':
                 lines = []
