@@ -4,7 +4,7 @@
 第一段（实况→封路）：data/obs/ 里岩見沢、札幌两站的逐时实测，统计“3 小时降水达到多少”的日子里有几天封了路。
 第二段（前一天的 MSM→封路）：Open-Meteo 往期预报接口（previous-runs-api）里“提前一天那一轮”的 MSM
   逐时降水和气温（变量名带 _previous_day1），在道央道沿线格点上按 R8／O9 的门槛算，看亮的日子里有几天封了路。
-标签：data/labels.csv 里“逐日核对”为“是”的日子（2025-11-01～12-15、2026-01-01～01-14，共 59 天），
+标签：data/labels.csv 里“逐日核对”为“是”的日子，范围是 2025–26 整个冬季（11-01～3-31）和 2026–27 冬季已标到的日子，天数写在输出里，
   只看一日游高速段（道央道 札幌—旭川）有没有封路，任何时刻封都算。
 
 口径：
@@ -23,7 +23,7 @@ import csv, datetime as dt, json, pathlib, sys, time, urllib.request, urllib.par
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / 'data' / 'backtest'
-SEASON = (dt.date(2025, 11, 1), dt.date(2026, 3, 31))
+SEASONS = [(dt.date(2025, 11, 1), dt.date(2026, 3, 31)), (dt.date(2026, 11, 1), None)]  # None：到 labels.csv 里最后一个核对过的日子
 COLD = 0.5
 
 # 生产用的格点（R8：①–④ 加 ⑪–⑮，坐标与网站、定时任务一致）
@@ -50,6 +50,41 @@ def labels():
         for r in csv.DictReader(f):
             L[r['日期']] = (r['逐日核对'], r['一日游高速段封路'])
     return L
+
+
+def seasons(L):
+    """把 SEASONS 里没写终点的季节补上终点（该季最后一个核对过的日子）。"""
+    out = []
+    for a, b in SEASONS:
+        if b is None:
+            ds = [dt.date.fromisoformat(d) for d, (c, _) in L.items() if c == '是' and dt.date.fromisoformat(d) >= a]
+            if not ds:
+                continue
+            b = max(ds)
+        out.append((a, b))
+    return out
+
+
+def in_season(L, d):
+    d = dt.date.fromisoformat(d) if isinstance(d, str) else d
+    return any(a <= d <= b for a, b in seasons(L))
+
+
+def season_days(L):
+    for a, b in seasons(L):
+        d = a
+        while d <= b:
+            yield d
+            d += dt.timedelta(days=1)
+
+
+def n_checked(L):
+    """回测范围里逐日核对过的天数。"""
+    return sum(1 for d, (c, _) in L.items() if c == '是' and in_season(L, d))
+
+
+def n_closed(L):
+    return sum(1 for d, v in L.items() if v == ('是', '是') and in_season(L, d))
 
 
 def rolling(series, n):
@@ -105,14 +140,14 @@ def score(days, L, key):
             closed = a == '是'
             if f:
                 fire += 1
-                fire_days.append(d[5:] + ('●' if closed else '○'))
+                fire_days.append(d[2:] + ('●' if closed else '○'))
                 if closed:
                     hit += 1
                 else:
                     false += 1
             elif closed:
                 miss += 1
-                miss_days.append(d[5:])
+                miss_days.append(d[2:])
         res.append({'rule': name, 'fired': fire, 'hit': hit, 'false': false, 'missed': miss,
                     'fired_days': fire_days, 'missed_days': miss_days})
     return res
@@ -147,31 +182,31 @@ def obs_part(L):
             return out
         s3, s6 = cold_window(3), cold_window(6)
         res_days = {}
-        d = SEASON[0]
-        while d <= SEASON[1]:
-            res_days[d.isoformat()] = day_max(s3, s6, d, 'all')
-            d += dt.timedelta(days=1)
-        closed = sum(1 for v in L.values() if v == ('是', '是'))
+        have = {t.date() for t in prec}
+        for d in season_days(L):
+            if d in have:
+                res_days[d.isoformat()] = day_max(s3, s6, d, 'all')
+        closed = n_closed(L)
         res = score(res_days, L, RULES_OBS)
-        md.append(f'### {name}\n\n全天口径，核对过的 59 天，一日游高速段封路 {closed} 天。\n\n' + table(res, closed))
+        md.append(f'### {name}\n\n全天口径，核对过的 {n_checked(L)} 天，一日游高速段封路 {closed} 天。\n\n' + table(res, closed))
         # 整个冬天（含没核对的日子）达到 3h≥5 的日子，方便以后补标签
         allw = []
         for d_, (m3, m6) in sorted(res_days.items()):
             if m3 >= 5:
                 c, a = L.get(d_, ('否', '不详'))
-                allw.append(f"{d_[5:]}（{m3:.1f} mm；{'封' if a == '是' else ('没封' if c == '是' else '标签不详')}）")
-        md.append(f'整个冬天（11/01–3/31）{name}全天 3 小时冷降水 ≥5 mm 的日子：' + ('、'.join(allw) or '无'))
+                allw.append(f"{d_[2:]}（{m3:.1f} mm；{'封' if a == '是' else ('没封' if c == '是' else '标签不详')}）")
+        md.append(f'回测范围内{name}全天 3 小时冷降水 ≥5 mm 的日子：' + ('、'.join(allw) or '无'))
         js[name] = {'rules': res, 'days': {k: [round(v[0], 1), round(v[1], 1)] for k, v in res_days.items()}}
     return '\n\n'.join(md), js
 
 
-def fetch_prev_msm(points):
+def fetch_prev_msm(points, start, end):
     lat = ','.join(str(v[0]) for v in points.values())
     lon = ','.join(str(v[1]) for v in points.values())
     q = {
         'latitude': lat, 'longitude': lon, 'models': 'jma_msm',
         'hourly': 'precipitation_previous_day1,temperature_2m_previous_day1',
-        'start_date': SEASON[0].isoformat(), 'end_date': (SEASON[1] + dt.timedelta(days=1)).isoformat(),
+        'start_date': start.isoformat(), 'end_date': (end + dt.timedelta(days=1)).isoformat(),
         'timezone': 'Asia/Tokyo', 'elevation': ','.join('nan' for _ in points), 'cell_selection': 'land',
     }
     url = 'https://previous-runs-api.open-meteo.com/v1/forecast?' + urllib.parse.urlencode(q, safe=',/')
@@ -190,22 +225,28 @@ def fetch_prev_msm(points):
 def msm_part(L):
     pts = dict(P9)
     pts.update({k: v for k, v in OLD8.items() if k not in pts})
-    data, url = fetch_prev_msm(pts)
+    cold = {n: {} for n in pts}
+    meta = {n: [None, None, 0] for n in pts}
+    urls = []
+    for a, b in seasons(L):
+        data, url = fetch_prev_msm(pts, a, b)
+        urls.append(url)
+        for (name, _), j in zip(pts.items(), data):
+            h = j['hourly']
+            meta[name][0], meta[name][1] = j.get('latitude'), j.get('longitude')
+            meta[name][2] += sum(1 for v in h['precipitation_previous_day1'] if v is None)
+            for t, p, T in zip(h['time'], h['precipitation_previous_day1'], h['temperature_2m_previous_day1']):
+                if p is None or T is None:
+                    continue
+                cold[name][dt.datetime.fromisoformat(t)] = p if T <= COLD else 0.0
+    url = ' ; '.join(urls)
     series = {}
-    for (name, _), j in zip(pts.items(), data):
-        h = j['hourly']
-        cold = {}
-        for t, p, T in zip(h['time'], h['precipitation_previous_day1'], h['temperature_2m_previous_day1']):
-            if p is None or T is None:
-                continue
-            cold[dt.datetime.fromisoformat(t)] = p if T <= COLD else 0.0
-        series[name] = (rolling(cold, 3), rolling(cold, 6), j.get('latitude'), j.get('longitude'),
-                        sum(1 for v in h['precipitation_previous_day1'] if v is None))
+    for name in pts:
+        series[name] = (rolling(cold[name], 3), rolling(cold[name], 6), meta[name][0], meta[name][1], meta[name][2])
 
     def set_days(names, mode):
         out, arg = {}, {}
-        d = SEASON[0]
-        while d <= SEASON[1]:
+        for d in season_days(L):
             best3 = best6 = 0.0
             who = ''
             for n in names:
@@ -215,10 +256,9 @@ def msm_part(L):
                 best6 = max(best6, m6)
             out[d.isoformat()] = (best3, best6)
             arg[d.isoformat()] = who
-            d += dt.timedelta(days=1)
         return out, arg
 
-    closed = sum(1 for v in L.values() if v == ('是', '是'))
+    closed = n_closed(L)
     md, js = [], {'url': url, 'grid': {n: {'lat': s[2], 'lon': s[3], 'missing_hours': s[4]} for n, s in series.items()}}
     for set_name, names in (('生产用的 9 个格点（P9）', list(P9)), ('第一次回测的 8 个格点（OLD8）', list(OLD8))):
         for mode, mode_name in (('all', '全天口径'), ('trip', '行程口径')):
@@ -231,8 +271,8 @@ def msm_part(L):
                 for k, (m3, m6) in sorted(days.items()):
                     if fired(m3, m6, 7, 10):
                         c, a = L.get(k, ('否', '不详'))
-                        lines.append(f"{k[5:]}（3h {m3:.1f}／6h {m6:.1f} mm，{arg[k]}；{'封' if a == '是' else ('没封' if c == '是' else '标签不详')}）")
-                md.append('整个冬天 P9 全天口径达到 R8 降水门槛的日子：' + ('、'.join(lines) or '无'))
+                        lines.append(f"{k[2:]}（3h {m3:.1f}／6h {m6:.1f} mm，{arg[k]}；{'封' if a == '是' else ('没封' if c == '是' else '标签不详')}）")
+                md.append('回测范围内 P9 全天口径达到 R8 降水门槛的日子：' + ('、'.join(lines) or '无'))
     # 单点：每个格点单独当一条规则（R8 门槛、全天口径）
     single = ['| 格点 | 实际网格中心 | 亮的天数 | 其中封路 | 没封路 |', '|---|---|---|---|---|']
     for n in pts:
@@ -248,8 +288,9 @@ def main():
     L = labels()
     OUT.mkdir(parents=True, exist_ok=True)
     now = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).strftime('%Y-%m-%d %H:%M')
-    parts = [f'# 雪带规则回测（2025–26 冬季）\n\n生成：{now}（东京时间），脚本 `scripts/backtest_snowband.py`。口径见脚本开头的说明。'
-             '标签只用“逐日核对”过的 59 天，所以“亮的天数”只数这 59 天；整冬的清单另列。']
+    rng = '，'.join(f'{a}～{b}' for a, b in seasons(L))
+    parts = [f'# 雪带规则回测（2025–26 冬季，加 2026–27 冬季已标到的日子）\n\n生成：{now}（东京时间），脚本 `scripts/backtest_snowband.py`。口径见脚本开头的说明。'
+             f'回测范围：{rng}。标签只用“逐日核对”过的 {n_checked(L)} 天（一日游高速段封路 {n_closed(L)} 天），“亮的天数”只数这些天。日期写成“年-月-日”的后两位年份。']
     obs_md, obs_js = obs_part(L)
     parts.append('## 第一段：实况 → 封路\n\n' + obs_md)
     js = {'generated_jst': now, 'obs': obs_js}
