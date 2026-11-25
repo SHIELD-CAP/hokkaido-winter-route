@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>北海道冬季路线出行参考</title>
+<style>
+/* ===== 令牌：浅色 ===== */
+:root{
+  color-scheme: light dark;
+  --bg:#f3f4f6; --card:#ffffff; --card2:#f6f7f9; --ink:#1f2328; --ink2:#4b545d; --ink3:#66707a;
+  --line:#dfe3e8; --link:#0b57d0; --focus:#1a73e8; --shadow:0 1px 2px rgba(16,24,40,.07),0 1px 3px rgba(16,24,40,.06);
+  --black:#111111;  --black-t:#3b1010;  --black-x:#ffffff;
+  --red:#d93025;    --red-t:#fce8e6;    --red-x:#a50e0e;
+  --orange:#e37400; --orange-t:#fef1dc; --orange-x:#8c4a00;
+  --green:#188038;  --green-t:#e6f4ea;  --green-x:#0d652d;
+  --gray:#80868b;   --gray-t:#eef0f2;   --gray-x:#555b61;
+  --font:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans","Noto Sans CJK SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
+  --font-ja:-apple-system,"Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic","Noto Sans CJK JP","Meiryo",sans-serif;
+}
+/* ===== 令牌：深色 ===== */
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#0f1114; --card:#181b1f; --card2:#20242a; --ink:#e9ecef; --ink2:#b8c0c8; --ink3:#98a1aa;
+    --line:#2d333a; --link:#8ab4f8; --focus:#8ab4f8; --shadow:0 0 0 0 transparent;
+    --black:#f1f3f4;  --black-t:#5c1111;  --black-x:#ffffff;
+    --red:#f0584d;    --red-t:#3b1c1a;    --red-x:#ffb9b2;
+    --orange:#f29a2e; --orange-t:#3a280e; --orange-x:#ffcb85;
+    --green:#4fb36d;  --green-t:#12301c;  --green-x:#9be0b0;
+    --gray:#9aa0a6;   --gray-t:#262a2e;   --gray-x:#c9ced3;
+  }
+}
+/* 等级：每个带 lv-* 的元素都能直接用 --c(实色) --t(底色) --x(底色上的文字色) */
+.lv-black{--c:var(--black);--t:var(--black-t);--x:var(--black-x)}
+.lv-red{--c:var(--red);--t:var(--red-t);--x:var(--red-x)}
+.lv-orange{--c:var(--orange);--t:var(--orange-t);--x:var(--orange-x)}
+.lv-green{--c:var(--green);--t:var(--green-t);--x:var(--green-x)}
+.lv-gray{--c:var(--gray);--t:var(--gray-t);--x:var(--gray-x)}
+
+/* ===== 基础 ===== */
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 var(--font);-webkit-tap-highlight-color:transparent}
+@media (min-width:600px){body{font-size:16px}}
+#app{max-width:720px;margin:0 auto;padding:12px 12px calc(32px + env(safe-area-inset-bottom))}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:var(--link)}
+h1,h2,h3,p,ul,ol{margin:0}
+ul,ol{padding:0;list-style:none}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:6px}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+.muted{color:var(--ink3)}
+.small{font-size:13px}
+[lang="ja"]{font-family:var(--font-ja)}
+
+.card{background:var(--card);border-radius:14px;box-shadow:var(--shadow),0 0 0 1px var(--line);padding:14px;margin-top:12px}
+.card > h3,.card-h{font-size:15px;font-weight:700;margin-bottom:8px}
+
+/* ===== 顶部 ===== */
+.top h1{font-size:21px;line-height:1.3;font-weight:800;letter-spacing:.01em}
+.top .sub{color:var(--ink2);font-size:14px;margin-top:2px}
+.fresh{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:10px}
+.fresh-text{font-size:13px;color:var(--ink);flex:1;min-width:0}
+.fresh-text .muted{margin-right:4px}
+.btn{min-height:44px;min-width:76px;padding:0 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);font-weight:600;font-size:14px;box-shadow:var(--shadow)}
+.btn:disabled{opacity:.6;cursor:default}
+
+/* ===== 横幅 ===== */
+.banners{margin-top:12px;display:grid;gap:8px}
+.banner{display:flex;gap:10px;padding:10px 12px;border-radius:12px;font-size:14px;line-height:1.55;border:1px solid var(--line);border-left-width:5px;background:var(--card2)}
+.banner a{white-space:nowrap}
+.nw{display:inline-block}
+.b-tag{font-weight:700;margin-right:4px}
+.b-red{background:var(--red-t);color:var(--red-x);border-color:var(--red)}
+.b-orange{background:var(--orange-t);color:var(--orange-x);border-color:var(--orange)}
+.b-red a,.b-orange a{color:inherit;font-weight:600}
+.b-info{border-left-color:var(--ink3)}
+.b-error{background:var(--gray-t);color:var(--ink);border-color:var(--ink)}
+.notes{margin-top:12px;padding:9px 12px;border-radius:10px;background:var(--card2);border:1px solid var(--line);font-size:13.5px;line-height:1.55}
+.notes b{display:block;margin-bottom:4px}
+.notes li{margin-left:1.1em;margin-top:4px}
+.more{margin-top:8px}
+.more>summary{cursor:pointer;color:var(--link);font-size:13.5px;padding:6px 0;min-height:32px}
+.lv-past{--c:var(--gray);--t:var(--gray-t);--x:var(--gray-x)}
+.scroll-hint{font-size:12px;color:var(--ink3);margin:2px 0 4px}
+.foot a{color:var(--link)}
+
+/* ===== 路线标签 ===== */
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;padding:4px;background:var(--card2);border-radius:12px;box-shadow:0 0 0 1px var(--line)}
+.tab{min-height:46px;border:0;border-radius:9px;background:transparent;font-weight:700;font-size:16px;color:var(--ink2)}
+.tab[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:var(--shadow),0 0 0 1.5px var(--ink)}
+.rinfo{padding:12px 2px 0}
+.rinfo h2{font-size:17px;font-weight:800}
+.rinfo p{color:var(--ink2);font-size:14px;margin-top:2px}
+
+/* ===== 日期条 ===== */
+.strip-card{padding:6px 8px 12px}
+.dstrip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(36px,1fr);gap:3px;overflow-x:auto;padding:14px 2px 4px;scrollbar-width:thin}
+.dbtn{position:relative;min-height:84px;display:flex;flex-direction:column;align-items:center;padding:5px 0 0;
+  border:1.5px solid var(--line);border-radius:11px;background:var(--card);overflow:visible}
+.dbtn .d1{font-weight:800;font-size:14px;line-height:1.2}
+.dbtn .d2{font-size:11px;color:var(--ink2);line-height:1.3}
+.dbtn .dl{margin-top:auto;width:100%;background:var(--t);color:var(--x);border-bottom:4px solid var(--c);border-radius:0 0 8px 8px;padding:3px 0 2px;font-size:11px;font-weight:700;line-height:1.3;text-align:center}
+.dbtn .dl .em{display:block;font-size:16px;line-height:1.35}
+.dbtn[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 1.5px var(--ink);background:var(--card2)}
+.dbtn.trend{border-style:dashed}
+
+.today-tag{position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--card);font-size:10px;font-weight:700;padding:1px 6px;border-radius:8px;white-space:nowrap;line-height:1.4}
+.strip-note{font-size:12.5px;color:var(--ink2);padding:6px 4px 0}
+.legend{display:flex;flex-wrap:wrap;gap:2px 12px;font-size:12px;color:var(--ink2);padding:6px 4px 0}
+
+/* ===== 当天结论卡 ===== */
+.day-card{border-top:5px solid var(--c)}
+.day-date{font-size:13px;color:var(--ink2);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.tag{display:inline-block;font-size:11px;font-weight:700;padding:0 7px;border-radius:8px;background:var(--ink);color:var(--card);line-height:1.6}
+.tag-dim{background:transparent;color:var(--ink2);border:1px dashed var(--ink3)}
+.bigchip{display:flex;align-items:center;flex-wrap:wrap;gap:4px 10px;margin-top:8px;padding:9px 14px;border-radius:12px;background:var(--t);color:var(--x);border:1.5px solid var(--c)}
+.bigchip .em{font-size:24px;line-height:1}
+.bigchip .bl{font-size:20px;font-weight:800;line-height:1.3}
+.bigchip .bs{font-size:14px;font-weight:600}
+.headline{font-size:16.5px;font-weight:700;line-height:1.5;margin-top:10px}
+.disc{font-size:12.5px;color:var(--ink3);margin-top:6px;line-height:1.5}
+.reasons{margin-top:12px;display:grid;gap:10px}
+.reason{display:flex;gap:10px;align-items:flex-start}
+.dot{flex:none;width:22px;height:22px;margin-top:1px;border-radius:50%;background:var(--t);color:var(--x);border:2px solid var(--c);display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;line-height:1}
+.reason .rt{display:block}
+.reason .src{display:block;font-size:12.5px;color:var(--ink3);margin-top:1px}
+.missing{margin-top:12px;padding:9px 12px;border-radius:10px;background:var(--gray-t);color:var(--gray-x);font-size:13.5px;border:1px dashed var(--gray)}
+
+/* ===== 路线甲：时间轴 ===== */
+.tl{margin-top:2px}
+.seg-btn{width:100%;display:grid;grid-template-columns:76px 1fr;align-items:stretch;padding:0;border:0;background:transparent;text-align:left}
+.seg-time{position:relative;padding:12px 12px 12px 0;font-size:13px;font-variant-numeric:tabular-nums;color:var(--ink2);border-right:2px solid var(--line);display:flex;align-items:center;line-height:1.3}
+.seg-time::after{content:"";position:absolute;right:-7px;top:50%;margin-top:-6px;width:12px;height:12px;border-radius:50%;background:var(--c);border:2px solid var(--card)}
+.seg-card{margin:4px 0 4px 14px;padding:9px 10px 9px 12px;border-radius:10px;background:var(--t);color:var(--x);border-right:6px solid var(--c);display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center;min-height:52px}
+.seg-name{font-weight:800;font-size:15px;color:var(--ink)}
+.seg-places{grid-column:1;font-size:12.5px;color:var(--ink2);line-height:1.45}
+.seg-lv{grid-row:1 / span 2;grid-column:2;text-align:center;font-size:12px;font-weight:800;line-height:1.3;min-width:40px}
+.seg-lv .em{display:block;font-size:17px}
+.chev{display:inline-block;font-size:10px;margin-top:2px;transition:transform .15s}
+.seg-btn[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.seg-body{margin:0 0 8px 90px;padding:10px 12px;border-radius:10px;background:var(--card2);box-shadow:0 0 0 1px var(--line)}
+@media (max-width:420px){.seg-body{margin-left:0}}
+
+.sub-h{font-size:13px;font-weight:700;color:var(--ink2);margin:12px 0 6px}
+.sub-h:first-child{margin-top:0}
+.note{font-size:12.5px;color:var(--ink3);line-height:1.5;margin:4px 0 8px}
+.raw{margin-top:8px}
+.raw-h{font-size:13px;font-weight:700;margin-bottom:4px}
+.tscroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tbl{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+.tbl th,.tbl td{padding:5px 6px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+.tbl th{font-weight:700;color:var(--ink2);font-size:12px;line-height:1.25;vertical-align:bottom}
+.tbl th:first-child,.tbl td:first-child{text-align:left}
+.tbl .u{display:block;font-weight:500;font-size:11px;color:var(--ink3)}
+.tbl tr:last-child td{border-bottom:0}
+
+/* ===== 路线乙：格子表 ===== */
+.g-head,.g-row{display:grid;grid-template-columns:repeat(var(--n,6),minmax(0,1fr));gap:4px}
+.g-col{font-size:12px;text-align:center;color:var(--ink2);font-variant-numeric:tabular-nums;padding-bottom:2px}
+.g-title{margin:14px 0 5px;font-size:14.5px;font-weight:800}
+.g-title small{display:block;font-weight:500;font-size:12.5px;color:var(--ink2);line-height:1.4}
+.gcell{min-height:56px;padding:2px 0;border:1.5px solid var(--line);border-bottom:4px solid var(--c);border-radius:9px;background:var(--t);color:var(--x);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11px;font-weight:800;line-height:1.3}
+.gcell .em{font-size:18px;line-height:1.3}
+.gcell[aria-pressed="true"]{border-color:var(--ink);box-shadow:0 0 0 1.5px var(--ink)}
+.g-detail{margin-top:14px;padding:10px 12px;border-radius:10px;background:var(--card2);box-shadow:0 0 0 1px var(--line);border-left:5px solid var(--c)}
+.g-detail h4{margin:0 0 6px;font-size:14px}
+.g-hint{margin-top:12px;font-size:13px;color:var(--ink3)}
+
+/* ===== 折叠卡 ===== */
+details.card{padding:0}
+details.card > summary{list-style:none;min-height:48px;padding:10px 14px;display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;cursor:pointer;border-radius:14px}
+details.card > summary::-webkit-details-marker{display:none}
+details.card > summary::after{content:"▾";margin-left:auto;color:var(--ink3);transition:transform .15s}
+details.card[open] > summary::after{transform:rotate(180deg)}
+details.card > summary .muted{font-weight:500;font-size:13px}
+.dbody{padding:0 14px 14px}
+
+/* 气象厅 */
+.fc{padding:9px 0;border-bottom:1px solid var(--line)}
+.fc:last-child{border-bottom:0}
+.fc-area{font-weight:800;font-size:14px}
+.fc .ja{font-size:12px;color:var(--ink3);line-height:1.4}
+.fc .zh{margin-top:1px}
+.fc .wz{margin-top:3px;font-size:14px}
+.early li{padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline}
+.early li:last-child{border-bottom:0}
+.pill{display:inline-block;padding:0 8px;border-radius:9px;font-size:12px;font-weight:800;line-height:1.6;border:1.5px solid var(--c);background:var(--t);color:var(--x)}
+.tl-tbl{min-width:100%}
+.tl-tbl th,.tl-tbl td{text-align:center;padding:4px 5px;font-size:12px}
+.tl-tbl th:first-child,.tl-tbl td:first-child{position:sticky;left:0;background:var(--card);text-align:left;z-index:1}
+.tl-tbl .mid{border-left:2px solid var(--ink3)}
+.tl-area{font-weight:700;font-size:13px;margin:8px 0 2px}
+
+/* 链接 */
+.lg{margin-top:10px}
+.lg:first-of-type{margin-top:0}
+.lg h4{margin:0 0 2px;font-size:13px;color:var(--ink2)}
+.link-item{display:block;padding:8px 0;min-height:48px;border-bottom:1px solid var(--line);text-decoration:none;color:inherit}
+.lg .link-item:last-child{border-bottom:0}
+.link-item .ln{color:var(--link);font-weight:700;text-decoration:underline;text-underline-offset:2px}
+.link-item .ln::after{content:" ↗";font-size:12px}
+.link-item .lnote{display:block;font-size:12.5px;color:var(--ink3);line-height:1.45}
+
+/* 规则/自检 */
+.rules li{padding:6px 0 6px 16px;position:relative;font-size:14px;line-height:1.6}
+.rules li::before{content:"·";position:absolute;left:4px;font-weight:800}
+.src-list li{padding:8px 0;border-bottom:1px solid var(--line);font-size:14px}
+.src-list li:last-child{border-bottom:0}
+.src-top{display:flex;flex-wrap:wrap;gap:2px 8px;align-items:baseline}
+.src-st{font-size:12.5px;font-weight:700}
+.st-stale .src-st{color:var(--orange-x)} .st-error .src-st{color:var(--red-x)}
+.src-note{display:block;font-size:12.5px;color:var(--ink3);margin-top:1px}
+
+/* 页脚 */
+.foot{margin-top:18px;padding:0 4px;font-size:12px;color:var(--ink3);line-height:1.6}
+.foot p{margin-top:4px}
+.foot .long{margin-top:8px;color:var(--ink2)}
+
+/* 加载骨架 */
+.loading-msg{font-weight:700}
+.sk{height:14px;border-radius:7px;background:var(--line);margin-top:12px;animation:pulse 1.2s ease-in-out infinite}
+.sk-tall{height:84px;border-radius:12px}
+@keyframes pulse{50%{opacity:.45}}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}.chev,details.card > summary::after{transition:none}}
+noscript p{padding:20px;text-align:center}
+</style>
+</head>
+<body>
+<main id="app"><noscript><p>需要开启 JavaScript 才能显示路线信息。</p></noscript></main>
+
+<script>
+/* =====================================================================
+ * 界面层：只管把 VIEW 画出来。取数与判定在别处。
+ * 对外：window.renderApp(view)；可选回调 window.onRefresh()
+ * 可选字段 meta.refreshing=true 时，刷新按钮显示“刷新中”并禁用。
+ * ===================================================================== */
+
+/* ---------- 等级定义（颜色之外，用文字、形状字符一起表达） ---------- */
+const LEVELS = {
+  black:  { emoji:'⬛', label:'交通瘫痪',      sub:'大面积封路、停运', full:'交通瘫痪（大面积封路、停运，基本动不了）', short:'<span class="nw">交通</span><span class="nw">瘫痪</span>', glyph:'■' },
+  red:    { emoji:'🔴', label:'不宜出行',      sub:'可能封高速或严重拥堵', full:'不宜出行（风雪可能让高速封闭或严重拥堵）', short:'<span class="nw">不宜</span><span class="nw">出行</span>', glyph:'✕' },
+  orange: { emoji:'🟠', label:'要注意',        sub:'能走，但要有预案', full:'要注意：能走，但要有预案',    short:'注意',   glyph:'▲' },
+  green:  { emoji:'🟢', label:'没有触发规则',   sub:'不等于安全',      full:'没有触发任何规则（不等于安全）', short:'未触发', glyph:'○' },
+  gray:   { emoji:'⚪', label:'无法判定',       sub:'缺数据',          full:'无法判定（缺数据）',          short:'缺数据', glyph:'？' }
+};
+const PAST = { emoji:'⌛', label:'这个时段已过', sub:'', full:'这个时段已过', short:'已过', glyph:'–' };
+const lvOf = x => (x && x.past ? PAST : lv(x && x.level));
+const lvKeyOf = x => (x && x.past ? 'past' : lvKey(x && x.level));
+const SRC_STATUS = {
+  ok:      { icon:'✅', text:'正常' },
+  stale:   { icon:'⚠️', text:'数据偏旧' },
+  error:   { icon:'❌', text:'取数失败' },
+  loading: { icon:'⏳', text:'加载中' }
+};
+const LS_KEY = 'hk-route-tab';
+
+/* ---------- 界面状态（重画时保留） ---------- */
+const state = {
+  route: null,        // 当前路线 id
+  day: {},            // routeId -> 选中的日期键
+  openSeg: {},        // 时间轴段展开：key -> true
+  cell: {},           // routeId|dayKey -> "行,列"
+  det: {}             // <details> 展开状态：key -> bool
+};
+try { state.route = localStorage.getItem(LS_KEY) || null; } catch (e) { /* 取不到也能用 */ }
+let LAST_VIEW = null;
+
+/* ---------- 小工具 ---------- */
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const arr = x => Array.isArray(x) ? x : [];
+const lv = k => LEVELS[k] || LEVELS.gray;
+const lvKey = k => LEVELS[k] ? k : 'gray';
+const safeUrl = u => /^https?:\/\//i.test(u || '') ? u : '';
+const fmt = v => {
+  if (v == null || v === '' || (typeof v === 'number' && !isFinite(v))) return '—';
+  if (typeof v === 'number') return Number.isInteger(v) ? String(v) : v.toFixed(1);
+  return esc(v);
+};
+const dayKey = (d, i) => (d && (d.date || d.label)) || String(i);
+const detOpen = (k, def) => (k in state.det) ? state.det[k] : !!def;
+
+function emojiSpan(level){ return `<span class="em" aria-hidden="true">${lv(level).emoji}</span>`; }
+function dotHtml(level){
+  const L = lv(level);
+  return `<span class="dot lv-${lvKey(level)}" role="img" aria-label="${esc(L.full)}">${L.glyph}</span>`;
+}
+const fmtNum = v => {   // 负数用减号“−”
+  if (v == null || v === '' || (typeof v === 'number' && !isFinite(v))) return '—';
+  if (typeof v === 'number') { const t = Number.isInteger(v) ? String(Math.abs(v)) : Math.abs(v).toFixed(1); return v < 0 ? '−' + t : t; }
+  return esc(v);
+};
+
+/* ---------- 顶部 ---------- */
+function renderHeader(view){
+  const m = view.meta || {};
+  const busy = !!(m.loading || m.refreshing);
+  const fresh = m.loading ? (m.freshness || '正在取数据…') : (m.freshness || '—');
+  return `<header class="top">
+    <h1>${esc(m.title || '北海道冬季路线出行参考')}</h1>
+    <p class="sub">两条固定路线 · 打开时实时计算</p>
+    <div class="fresh">
+      <p class="fresh-text"><span class="muted">数据时间</span>${esc(fresh)}</p>
+      <button type="button" class="btn" data-act="refresh" data-fk="refresh" aria-label="刷新数据" ${busy ? 'disabled' : ''}>${busy ? '刷新中…' : '↻ 刷新'}</button>
+    </div>
+  </header>`;
+}
+
+function renderLoading(){
+  return `<section class="card" aria-busy="true">
+    <p class="loading-msg" role="status">⏳ 正在取数据…</p>
+    <p class="muted small">正在从气象厅和 Open-Meteo 取最新数据并计算，一般要几秒钟。</p>
+    <div class="sk sk-tall"></div><div class="sk" style="width:70%"></div><div class="sk" style="width:90%"></div><div class="sk" style="width:55%"></div>
+  </section>`;
+}
+
+/* ---------- 横幅 ---------- */
+function renderBanners(view){
+  const list = arr(view.banners).filter(b => b && b.text);
+  if (!list.length) return '';
+  const ICON = { red:'🚨', orange:'📄', info:'ℹ️', error:'⛔' }, TAG = { red:'气象厅警报', orange:'提醒', info:'提示', error:'出错' };
+  return `<section class="banners" aria-label="重要提示">` + list.map(b => {
+    const k = ICON[b.level] ? b.level : 'info';
+    const u = safeUrl(b.url);
+    return `<div class="banner b-${k}"><span aria-hidden="true">${ICON[k]}</span>
+      <div><span class="b-tag">${esc(b.tag || TAG[k])}</span>${esc(b.text)}${u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">查看原文</a>` : ''}</div></div>`;
+  }).join('') + `</section>`;
+}
+
+/* ---------- 原值小表 / 依据列表 ---------- */
+function rawBlock(raw){
+  const list = arr(raw).filter(r => r && arr(r.rows).length);
+  const head = `<p class="note">下面是数值预报模式在附近陆地格点上的计算结果，经 Open-Meteo 取得；没有按海拔修正；降雪量来自模式（ECMWF），或由 Open-Meteo 用降水量和气温换算（MSM），可能与实际相差很大。“时刻”一列是这一小时结束时的数值，降雪、降雨是前一小时的累计；24 表示当天 24 点（次日 0 点）。</p>`;
+  if (!list.length) return `<h4 class="sub-h">模式数值</h4>${head}<p class="muted small">这一段没有可用的模式数值。</p>`;
+  return `<h4 class="sub-h">模式数值</h4>${head}` + list.map(r => {
+    const rows = arr(r.rows), hasG = rows.some(x => x.g != null);
+    return `
+    <div class="raw"><div class="raw-h">${esc(r.model || '模式')} · ${esc(r.point || '')}</div>
+    <div class="tscroll"><table class="tbl"><thead><tr>
+      <th scope="col">时刻</th><th scope="col">风速<span class="u">m/s</span></th>${hasG ? '<th scope="col">阵风<span class="u">m/s</span></th>' : ''}
+      <th scope="col">降雪<span class="u">cm/h</span></th><th scope="col">降雨<span class="u">mm/h</span></th><th scope="col">气温<span class="u">℃</span></th>
+    </tr></thead><tbody>` +
+    rows.map(x => `<tr><td>${fmtNum(x.h)}</td><td>${fmtNum(x.w)}</td>${hasG ? `<td>${fmtNum(x.g)}</td>` : ''}<td>${fmtNum(x.sn)}</td><td>${fmtNum(x.rn)}</td><td>${fmtNum(x.t)}</td></tr>`).join('') +
+    `</tbody></table></div></div>`; }).join('');
+}
+function reasonList(reasons, fallbackLevel){
+  const list = arr(reasons);
+  if (!list.length) return `<p class="muted small">没有可列出的依据。</p>`;
+  return `<ul class="reasons">` + list.map(r => `<li class="reason lv-${lvKey(r.level || fallbackLevel)}">${dotHtml(r.level || fallbackLevel)}
+    <span><span class="rt">${esc(r.text)}</span>${r.src ? `<span class="src">${esc(r.src)}</span>` : ''}</span></li>`).join('') + `</ul>`;
+}
+
+/* ---------- 路线区 ---------- */
+function pickRoute(routes){
+  let r = routes.find(x => x && x.id === state.route);
+  if (!r) r = routes[0];
+  state.route = r.id;
+  return r;
+}
+function pickDay(route, days){
+  const want = state.day[route.id];
+  let i = days.findIndex((d, k) => dayKey(d, k) === want);
+  if (i < 0) i = Math.max(0, days.findIndex(d => d && !d.past));
+  state.day[route.id] = dayKey(days[i], i);
+  return { day: days[i], index: i };
+}
+
+function renderTabs(routes, cur){
+  return `<div class="tabs" role="tablist" aria-label="选择路线">` + routes.map(r => {
+    const on = r.id === cur.id;
+    return `<button type="button" class="tab" role="tab" id="tab-${esc(r.id)}" aria-selected="${on}" aria-controls="route-panel" tabindex="${on ? 0 : -1}"
+      data-act="route" data-id="${esc(r.id)}" data-fk="tab-${esc(r.id)}">${esc(r.short || r.name || r.id)}</button>`;
+  }).join('') + `</div>
+  <div class="rinfo"><h2>${esc(cur.name || '')}</h2>${cur.desc ? `<p>${esc(cur.desc)}</p>` : ''}</div>`;
+}
+
+function renderStrip(days, selIndex){
+  if (!days.length) return '';
+  const firstTrend = days.findIndex(d => d && d.trend);
+  const btns = days.map((d, i) => {
+    d = d || {};
+    const L = lvOf(d), on = i === selIndex;
+    const aria = `${d.label || ''}${d.dow ? '，周' + d.dow : ''}${d.isToday ? '，今天' : ''}，${L.full}${d.trend ? '，趋势' : ''}`;
+    return `<button type="button" class="dbtn lv-${lvKeyOf(d)}${d.trend ? ' trend' : ''}" aria-pressed="${on}" aria-label="${esc(aria)}"
+      data-act="day" data-key="${esc(dayKey(d, i))}" data-fk="day-${i}">
+      ${d.isToday ? '<span class="today-tag">今天</span>' : ''}
+      <span class="d1">${esc(d.label || '')}</span><span class="d2">${d.dow ? '(' + esc(d.dow) + ')' : ''}</span>
+      <span class="dl"><span class="em" aria-hidden="true">${L.emoji}</span>${L.short}</span></button>`;
+  }).join('');
+  const legend = ['black','red','orange','green','gray'].map(k => `<span>${LEVELS[k].emoji} ${LEVELS[k].label}</span>`).join('');
+  return `<section class="card strip-card" aria-label="选择日期">
+    <div class="dstrip">${btns}</div>
+    ${firstTrend >= 0 ? `<p class="strip-note">第 ${firstTrend + 1} 天起（虚线框）只能看大致走向，供排日程用</p>` : ''}
+    <div class="legend" aria-hidden="true">${legend}</div></section>`;
+}
+
+function renderDayCard(view, day){
+  const L = lvOf(day), k = lvKeyOf(day);
+  const missing = arr(day.missing).filter(Boolean);
+  const reasons = arr(day.reasons), notes = arr(day.notes).filter(Boolean);
+  const first = reasons.slice(0, 3), rest = reasons.slice(3);
+  const dk = `more|${state.route}|${day.date || day.label}`;
+  return `<section class="card day-card lv-${k}" aria-label="当天结论">
+    <div class="day-date"><span>${esc(day.label || '')}${day.dow ? '（周' + esc(day.dow) + '）' : ''}</span>
+      ${day.isToday ? '<span class="tag">今天</span>' : ''}${day.trend ? '<span class="tag tag-dim">趋势</span>' : ''}</div>
+    <div class="bigchip"><span class="em" aria-hidden="true">${L.emoji}</span><span class="bl">${esc(L.label)}</span>${L.sub ? `<span class="bs">${esc(L.sub)}</span>` : ''}</div>
+    ${day.headline ? `<p class="headline">${esc(day.headline)}</p>` : ''}
+    ${view.disclaimerShort ? `<p class="disc">${esc(view.disclaimerShort)}</p>` : ''}
+    ${reasonList(first, day.level)}
+    ${rest.length ? `<details class="more" data-k="${esc(dk)}" ${detOpen(dk, false) ? 'open' : ''}><summary>还有 ${rest.length} 条依据</summary>${reasonList(rest, day.level)}</details>` : ''}
+    ${notes.length ? `<div class="notes"><b>提醒（不影响等级）</b><ul>${notes.map(n => `<li>${esc(n)}</li>`).join('')}</ul></div>` : ''}
+    ${missing.length && day.level !== 'gray' ? `<p class="missing">以下数据缺失：${missing.map(esc).join('、')}</p>` : ''}
+  </section>`;
+}
+
+/* 路线甲：时间轴 */
+function renderTimeline(route, day, dk){
+  const segs = arr(day.segments);
+  if (!segs.length) return '';
+  return `<section class="card" aria-label="分时段"><h3>分时段 <span class="muted small">点开看依据和原值</span></h3><ol class="tl">` + segs.map((s, i) => {
+    s = s || {};
+    const key = `${route.id}|${dk}|${s.id || i}`, open = !!state.openSeg[key], k = lvKeyOf(s), L = lvOf(s);
+    return `<li class="lv-${k}">
+      <button type="button" class="seg-btn" aria-expanded="${open}" aria-controls="seg-${i}" data-act="seg" data-key="${esc(key)}" data-fk="seg-${i}"
+        aria-label="${esc((s.time || '') + ' ' + (s.name || '') + '，' + L.full)}">
+        <span class="seg-time">${esc(s.time || '')}</span>
+        <span class="seg-card"><span class="seg-name">${esc(s.name || '')}</span>
+          <span class="seg-lv"><span class="em" aria-hidden="true">${L.emoji}</span>${L.short}<span class="chev" aria-hidden="true">▾</span></span>
+          <span class="seg-places">${esc(s.places || '')}</span></span>
+      </button>
+      ${open ? `<div class="seg-body" id="seg-${i}"><h4 class="sub-h">依据</h4>${reasonList(s.reasons, s.level)}${rawBlock(s.raw)}</div>` : ''}
+    </li>`;
+  }).join('') + `</ol></section>`;
+}
+
+/* 路线乙：格子表 */
+function renderGrid(route, day, dk){
+  const g = day.grid;
+  if (!g) return '';
+  const rows = arr(g.rows), cols = arr(g.cols), cells = arr(g.cells);
+  if (!rows.length || !cols.length) return '';
+  const selKey = `${route.id}|${dk}`, sel = state.cell[selKey];
+  const [sr, sc] = sel ? sel.split(',').map(Number) : [-1, -1];
+  const body = rows.map((r, ri) => `<div class="g-title">${esc(r.name || '')}<small>${esc(r.places || '')}</small></div>
+    <div class="g-row" style="--n:${cols.length}">` + cols.map((c, ci) => {
+      const cell = (arr(cells[ri])[ci]) || {}, L = lvOf(cell), on = ri === sr && ci === sc;
+      return `<button type="button" class="gcell lv-${lvKeyOf(cell)}" aria-pressed="${on}" data-act="cell" data-r="${ri}" data-c="${ci}" data-fk="cell-${ri}-${ci}"
+        aria-label="${esc((r.name || '') + ' ' + c + '，' + L.full)}"><span class="em" aria-hidden="true">${L.emoji}</span><span>${L.short}</span></button>`;
+    }).join('') + `</div>`).join('');
+  let detail = `<p class="g-hint">点一个格子，看这一格的依据和原值。</p>`;
+  if (sr >= 0) {
+    const cell = arr(cells[sr])[sc] || {}, L = lvOf(cell);
+    detail = `<div class="g-detail lv-${lvKeyOf(cell)}" aria-live="polite"><h4>${esc((rows[sr] || {}).name || '')} · ${esc(cols[sc] || '')} · ${L.emoji} ${esc(L.full)}</h4>
+      <h4 class="sub-h">依据</h4>${reasonList(cell.reasons, cell.level)}${rawBlock(cell.raw)}</div>`;
+  }
+  return `<section class="card" aria-label="分路段分时段">
+    <h3>分路段、分时段</h3>
+    <p class="note">两个方向的判定相同；封闭和限速可能只针对一个方向，出门前请查道路信息。</p>
+    <div class="g-head" style="--n:${cols.length}">${cols.map(c => `<div class="g-col">${esc(c)}</div>`).join('')}</div>
+    ${body}${detail}</section>`;
+}
+
+/* 气象厅原文 */
+function renderJma(route, day, dk){
+  const j = day.jma;
+  if (!j) return '';
+  const k = `jma|${route.id}|${dk}`;
+  const fc = arr(j.forecast), early = arr(j.early), tls = arr(j.timeline);
+  let h = '';
+  h += `<h4 class="sub-h">天气预报（中文是参考译文）</h4>`;
+  h += fc.length ? fc.map(f => `<div class="fc"><div class="fc-area">${esc(f.area || '')}</div>
+      <div class="zh">${esc(f.zh || '')}</div>${f.ja ? `<div class="ja" lang="ja">${esc(f.ja)}</div>` : ''}
+      ${f.windZh || f.windJa ? `<div class="wz">${esc(f.windZh || '')}</div>${f.windJa ? `<div class="ja" lang="ja">${esc(f.windJa)}</div>` : ''}` : ''}</div>`).join('')
+    : `<p class="muted small">没有取到预报文字。</p>`;
+  h += `<h4 class="sub-h">早期注意信息（出现警报级天气的可能性）</h4>`;
+  h += early.length ? `<ul class="early">` + early.map(e => {
+      const lk = e.level === '高' ? 'red' : 'orange';
+      return `<li><b>${esc(e.area || '')}</b><span>${esc(e.item || '')}</span><span class="pill lv-${lk}">${esc(e.level || '')}</span><span class="muted">${esc(e.period || '')}</span></li>`;
+    }).join('') + `</ul>`
+    : `<p class="small">${esc(j.earlyNote || '没有早期注意信息')}</p>`;
+  if (tls.length) {
+    h += `<h4 class="sub-h">气象厅危险度时间序列（3 小时一格，地区最大值）</h4><p class="scroll-hint">表格可以左右滑动。</p>`;
+    h += tls.map(t => {
+      const cols = arr(t.cols);
+      const th = cols.map((c, i) => `<th scope="col" class="${i > 0 && /^00/.test(c) ? 'mid' : ''}">${esc(c)}</th>`).join('');
+      const tr = (name, unit, vals) => `<tr><td>${name}<span class="u">${unit}</span></td>${cols.map((c, i) => `<td class="${i > 0 && /^00/.test(c) ? 'mid' : ''}">${fmt(arr(vals)[i])}</td>`).join('')}</tr>`;
+      return `<div class="tl-area">${esc(t.area || '')}</div><div class="tscroll"><table class="tbl tl-tbl"><thead><tr><th scope="col"></th>${th}</tr></thead>
+        <tbody>${tr('最大风速', 'm/s', t.wind)}${tr('6 小时最大降雪量', 'cm', t.snow6h)}</tbody></table></div>`;
+    }).join('');
+  }
+  return `<details class="card" data-k="${esc(k)}" ${detOpen(k, false) ? 'open' : ''}><summary>气象厅发布的内容（附参考译文） <span class="muted">${esc(day.label || '')}</span></summary><div class="dbody">${h}</div></details>`;
+}
+
+function renderRoutes(view){
+  const routes = arr(view.routes).filter(Boolean);
+  if (!routes.length) return `<section class="card"><p class="muted">暂时没有路线数据。</p></section>`;
+  const route = pickRoute(routes);
+  const days = arr(route.days);
+  let out = renderTabs(routes, route) + `<div id="route-panel" role="tabpanel" aria-labelledby="tab-${esc(route.id)}">`;
+  if (!days.length) return out + `<section class="card"><p class="muted">这条路线暂时没有逐日结果。</p></section></div>`;
+  const { day, index } = pickDay(route, days);
+  const dk = dayKey(day, index);
+  out += renderStrip(days, index) + renderDayCard(view, day || {});
+  out += route.kind === 'grid' ? renderGrid(route, day || {}, dk) : renderTimeline(route, day || {}, dk);
+  out += renderJma(route, day || {}, dk);
+  return out + `</div>`;
+}
+
+/* ---------- 沿线实测 ---------- */
+function renderAmedas(view){
+  const a = view.amedas;
+  if (!a) return '';
+  const k = 'amedas';
+  let body;
+  if (a.status === 'idle') body = `<p class="muted">展开时去取最新的实测数据。</p>`;
+  else if (a.status === 'loading') body = `<p class="muted">⏳ 正在取实测数据…</p>`;
+  else if (a.status === 'error') body = `<p class="muted">实测数据暂时取不到。</p>`;
+  else if (!arr(a.rows).length) body = `<p class="muted">没有可显示的站点。</p>`;
+  else body = `<div class="tscroll"><table class="tbl"><thead><tr><th scope="col">站</th><th scope="col">气温<span class="u">℃</span></th><th scope="col">风速<span class="u">m/s</span></th><th scope="col">积雪<span class="u">cm</span></th><th scope="col">24 小时降雪<span class="u">cm</span></th></tr></thead><tbody>` +
+    arr(a.rows).map(r => `<tr><td>${esc(r.name || '')}</td><td>${fmtNum(r.temp)}</td><td>${fmtNum(r.wind)}</td><td>${fmtNum(r.depth)}</td><td>${fmtNum(r.s24)}</td></tr>`).join('') + `</tbody></table></div>`;
+  return `<details class="card" data-k="${k}" ${detOpen(k, false) ? 'open' : ''}><summary>沿线实测（AMeDAS：气象厅的自动气象站网）<span class="muted">${esc(a.time || '')}</span></summary><div class="dbody">${body}</div></details>`;
+}
+
+/* ---------- 链接 ---------- */
+function renderLinks(view){
+  const groups = arr(view.links).filter(g => g && arr(g.items).length);
+  if (!groups.length) return '';
+  return `<section class="card" aria-label="官方信息链接"><h3>官方信息链接</h3>` + groups.map(g => `<div class="lg"><h4>${esc(g.group || '')}</h4>` +
+    arr(g.items).map(it => { const u = safeUrl(it.url); return u ? `<a class="link-item" href="${esc(u)}" target="_blank" rel="noopener"><span class="ln">${esc(it.name || u)}</span>${it.note ? `<span class="lnote">${esc(it.note)}</span>` : ''}</a>` : ''; }).join('') + `</div>`).join('') + `</section>`;
+}
+
+/* ---------- 规则 / 自检 ---------- */
+function renderRules(view){
+  const rules = arr(view.rulesText).filter(Boolean);
+  if (!rules.length) return '';
+  const k = 'rules';
+  return `<details class="card" data-k="${k}" ${detOpen(k, false) ? 'open' : ''}><summary>规则说明</summary><div class="dbody"><ul class="rules">${rules.map(t => `<li>${esc(t)}</li>`).join('')}</ul></div></details>`;
+}
+function renderSources(view){
+  const src = arr(view.sources).filter(Boolean);
+  if (!src.length) return '';
+  const k = 'sources', cnt = {};
+  src.forEach(s => { cnt[s.status] = (cnt[s.status] || 0) + 1; });
+  const sum = ['ok','stale','error','loading'].filter(s => cnt[s]).map(s => `${SRC_STATUS[s].icon}${cnt[s]}`).join(' ');
+  return `<details class="card" data-k="${k}" ${detOpen(k, false) ? 'open' : ''}><summary>数据自检 <span class="muted">${sum}</span></summary><div class="dbody"><ul class="src-list">` +
+    src.map(s => { const st = SRC_STATUS[s.status] || SRC_STATUS.loading, sk = SRC_STATUS[s.status] ? s.status : 'loading';
+      return `<li class="st-${sk}"><div class="src-top"><span aria-hidden="true">${st.icon}</span><b>${esc(s.name || '')}</b><span class="src-st">${st.text}</span>${s.reportTime ? `<span class="muted small">${esc(s.reportTime)}</span>` : ''}</div>${s.note ? `<span class="src-note">${esc(s.note)}</span>` : ''}</li>`; }).join('') +
+    `</ul></div></details>`;
+}
+
+/* ---------- 页脚 ---------- */
+function renderFooter(view){
+  const m = view.meta || {}, at = arr(view.attribution).filter(Boolean);
+  if (!at.length && !m.rulesVersion && !view.disclaimerLong) return '';
+  const part = x => {
+    if (typeof x === 'string') return esc(x);
+    const u = safeUrl(x && x.u);
+    return u ? `<a href="${esc(u)}" target="_blank" rel="noopener">${esc(x.t || u)}</a>` : esc((x && x.t) || '');
+  };
+  const line = t => (typeof t === 'string' ? esc(t) : arr(t.parts).map(part).join(''));
+  return `<footer class="foot">${at.map(t => `<p>${line(t)}</p>`).join('')}
+    ${m.rulesVersion ? `<p>规则版本 ${esc(m.rulesVersion)}</p>` : ''}
+    ${view.disclaimerLong ? `<p class="long">${esc(view.disclaimerLong)}</p>` : ''}</footer>`;
+}
+
+/* ---------- 主入口 ---------- */
+function render(view){
+  const app = document.getElementById('app');
+  if (!app) return;
+  view = view || {};
+  LAST_VIEW = view;
+  const y = window.scrollY;
+  const ae = document.activeElement;
+  const fk = ae && ae.dataset ? ae.dataset.fk : null;
+  const m = view.meta || {};
+  let html = renderHeader(view);
+  if (m.loading) html += renderLoading();
+  else html += renderBanners(view) + renderRoutes(view) + renderAmedas(view) + renderLinks(view) + renderRules(view) + renderSources(view);
+  html += renderFooter(view);
+  app.innerHTML = html;
+  window.scrollTo(0, y);
+  if (fk) { const el = app.querySelector(`[data-fk="${fk}"]`); if (el && !el.disabled) el.focus({ preventScroll: true }); }
+}
+window.renderApp = render;
+
+/* ---------- 事件（委托，重画后依然有效） ---------- */
+(function bind(){
+  const app = document.getElementById('app');
+  app.addEventListener('click', e => {
+    const t = e.target.closest('[data-act]');
+    if (!t || t.disabled) return;
+    const act = t.dataset.act;
+    if (act === 'refresh') { if (window.onRefresh) window.onRefresh(); return; }
+    if (act === 'route') { state.route = t.dataset.id; try { localStorage.setItem(LS_KEY, state.route); } catch (err) {} }
+    else if (act === 'day') { state.day[state.route] = t.dataset.key; }
+    else if (act === 'seg') { const k = t.dataset.key; state.openSeg[k] = !state.openSeg[k]; }
+    else if (act === 'cell') {
+      const dk = state.day[state.route], k = `${state.route}|${dk}`, v = `${t.dataset.r},${t.dataset.c}`;
+      state.cell[k] = state.cell[k] === v ? '' : v;
+    }
+    render(LAST_VIEW);
+  });
+  app.addEventListener('keydown', e => {           // 路线标签：左右键切换
+    const t = e.target.closest('[role="tab"]');
+    if (!t || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return;
+    const tabs = Array.from(app.querySelectorAll('[role="tab"]'));
+    const n = tabs[(tabs.indexOf(t) + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+    e.preventDefault(); n.click();
+  });
+  app.addEventListener('toggle', e => {            // 记住 <details> 的开合
+    const d = e.target;
+    if (d && d.tagName === 'DETAILS' && d.dataset.k) {
+      state.det[d.dataset.k] = d.open;
+      if (d.dataset.k === 'amedas' && d.open && window.onAmedasOpen) window.onAmedasOpen();
+    }
+  }, true);
+})();
+
+/* =====================================================================
+ * 样例数据（预览用；window.VIEW 存在时不使用）
+ * ===================================================================== */
+function buildMock(){
+  const DAYS = [
+    ['2026-11-23','23日','一'],['2026-11-24','24日','二'],['2026-11-25','25日','三'],['2026-11-26','26日','四'],
+    ['2026-11-27','27日','五'],['2026-11-28','28日','六'],['2026-11-29','29日','日'],['2026-11-30','30日','一']
+  ];
+  const LV = { r:'red', o:'orange', g:'green', y:'gray' };
+  const pad = n => String(n).padStart(2, '0');
+  const SEV = { red:1, orange:.6, green:.2, gray:0 };
+
+  function raw(points, h0, h1, level){
+    if (level === 'gray') return [];
+    const f = SEV[level], hours = [];
+    for (let h = h0; h < Math.min(h1, h0 + 4); h++) hours.push(h);
+    return points.map((p, pi) => ({ model:'MSM', point:p, rows: hours.map((h, i) => ({
+      h: pad(h % 24),
+      w: +(2.5 + 9 * f + ((i + pi) % 3) * 0.8).toFixed(1),
+      g: (i + pi) % 3 === 0 ? null : +(5 + 13 * f + ((i + pi) % 2) * 1.2).toFixed(1),
+      sn: +(f * 2.4 * (0.6 + ((i + pi) % 3) * 0.3)).toFixed(1),
+      rn: level === 'green' ? 0 : +(((i + pi) % 2) * 0.3).toFixed(1),
+      t: +(2 - 6 * f - i * 0.3).toFixed(1)
+    })) }));
+  }
+
+  /* 路线甲：时间轴 */
+  const SEGS = [
+    { id:'S1', name:'去程高速', time:'09:00–11:00', places:'札幌→岩見沢→美唄→滝川→深川', pts:['岩見沢','滝川'], h:[9,11], kind:'hw' },
+    { id:'S2', name:'旭川—美瑛 国道', time:'11:00–12:30', places:'旭川→美瑛', pts:['旭川','美瑛'], h:[11,13], kind:'nat' },
+    { id:'S3', name:'白金山路', time:'12:30–15:00', places:'美瑛→白金温泉→青い池', pts:['美瑛','白金温泉'], h:[12,15], kind:'mtn' },
+    { id:'S4', name:'回程山路', time:'15:00–16:30', places:'白金温泉→美瑛', pts:['白金温泉','美瑛'], h:[15,17], kind:'mtn' },
+    { id:'S5', name:'回程高速', time:'16:30–19:30', places:'旭川→深川→滝川→岩見沢→札幌', pts:['深川','岩見沢'], h:[17,20], kind:'hw' }
+  ];
+  const SR = {
+    hw:  { red:'预报阵风 15 m/s 以上并伴有降雪，吹雪使能见度骤降，高速可能限速或封闭',
+           orange:'风速 8–10 m/s、降雪 1–2 cm/h，路面湿滑，车距要拉大',
+           green:'风速、降雪都低于注意线', gray:'本时段缺少模式数据，不做判定' },
+    nat: { red:'市区外的国道降雪集中，除雪跟不上，容易堵在路上',
+           orange:'有间歇性降雪，路口和桥面易结冰',
+           green:'降雪弱，路面以湿滑为主', gray:'本时段缺少模式数据，不做判定' },
+    mtn: { red:'天黑前后气温降到 0℃ 以下，融雪水结冰；坡道与弯道可能无法通过',
+           orange:'山路气温在 0℃ 上下，坡道有薄冰的可能，要带好防滑链',
+           green:'山路降雪弱、气温偏低但路面状况尚可', gray:'本时段缺少模式数据，不做判定' }
+  };
+  const SRC = { red:'气象厅 风雪早期注意情报（高）· 数值模式', orange:'气象厅预报 · 数值模式', green:'数值模式 · AMeDAS', gray:'' };
+  const AHEAD = [
+    { level:'green',  headline:'全程未见封路级信号，早晚的山路留意路面结冰。',
+      reasons:[{ text:'风速和降雪都低于注意线，沿线 AMeDAS 实测也没有强降雪', src:'数值模式 · AMeDAS' }, { text:'白金一带气温在 −3℃ 上下，路面可能有薄冰', src:'AMeDAS 美瑛' }], missing:[] },
+    { level:'green',  headline:'云多，偶有小雪，未见封路级信号。',
+      reasons:[{ text:'午后有零星小雪，降雪强度不到 1 cm/h', src:'气象厅预报 · 数值模式' }], missing:['上川地方 时系列'] },
+    { level:'red',    headline:'先雨后雪并有吹雪，回程山路天黑结冰',
+      reasons:[{ level:'red', text:'傍晚起西北风转强，阵风 15 m/s 以上并伴随降雪，吹雪使能见度很差', src:'气象厅 风雪早期注意情报（高）' },
+               { level:'red', text:'白天的雨水在山路上遇冷结冰，天黑前后回程最危险', src:'数值模式 · 气温 0℃ 以下' },
+               { level:'orange', text:'上午去程只有零星降雨，路面湿滑', src:'气象厅预报' }], missing:[] },
+    { level:'red',    headline:'冬型气压配置加强，道央到道北风雪明显，不建议走',
+      reasons:[{ level:'red', text:'空知到上川一带出现持续降雪与强风，高速可能限速或封闭', src:'数值模式（趋势，不确定性较大）' }], missing:[] },
+    { level:'orange', headline:'风雪趋缓，美瑛一带仍有吹雪，备好预案',
+      reasons:[{ level:'orange', text:'美瑛、白金一带风速 8–10 m/s，田野开阔处会有吹雪', src:'数值模式（趋势）' }], missing:[] },
+    { level:'orange', headline:'回暖后融雪再结冰，早晚路面易打滑',
+      reasons:[{ level:'orange', text:'午后气温升到 0℃ 以上，傍晚回落，路面可能出现镜面冰', src:'数值模式（趋势）' }], missing:[] },
+    { level:'green',  headline:'高压覆盖，晴到多云，未见封路级信号',
+      reasons:[{ text:'风小、基本无降雪', src:'数值模式（趋势）' }], missing:[] },
+    { level:'gray',   headline:'超出模式可用范围，数据不全，无法判定',
+      reasons:[{ level:'gray', text:'只有较粗的趋势数据，不足以判断到小时', src:'' }], missing:['气象厅 地方预报（超出发表范围）', 'Open-Meteo 逐小时数据（30日 12时以后）'] }
+  ];
+
+  const FC = {
+    red:[ { area:'石狩地方', ja:'雨 後 雪 で ふぶく', zh:'雨转雪，有吹雪', windJa:'北西の風 後 北の風 強く', windZh:'西北风转北风，强' },
+          { area:'空知地方', ja:'雪 で 昼過ぎ から ふぶく', zh:'雪，午后起有吹雪', windJa:'北の風 強く', windZh:'北风，强' },
+          { area:'上川地方', ja:'雪 で 夜 は 大雪 の 所 あり', zh:'雪，夜里部分地区有大雪', windJa:'北の風 やや強く', windZh:'北风，稍强' } ],
+    orange:[ { area:'石狩地方', ja:'くもり 時々 雪', zh:'多云，时有雪', windJa:'北西の風 やや強く', windZh:'西北风，稍强' },
+             { area:'空知地方', ja:'雪 時々 くもり', zh:'雪，时有多云', windJa:'北の風', windZh:'北风' },
+             { area:'上川地方', ja:'雪 時々 くもり', zh:'雪，时有多云', windJa:'北の風', windZh:'北风' } ],
+    green:[ { area:'石狩地方', ja:'くもり 時々 晴れ', zh:'多云，时有晴', windJa:'南の風 弱く', windZh:'南风，弱' },
+            { area:'空知地方', ja:'くもり 一時 雪', zh:'多云，短时有雪', windJa:'南の風 弱く', windZh:'南风，弱' },
+            { area:'上川地方', ja:'くもり 時々 晴れ', zh:'多云，时有晴', windJa:'東の風 弱く', windZh:'东风，弱' } ],
+    gray:[]
+  };
+  const EARLY = {
+    red:[ { area:'石狩地方', item:'风（风雪）', level:'高', period:'25日 12–24时' }, { area:'空知地方', item:'大雪', level:'中', period:'25日 18时–26日 06时' } ],
+    orange:[ { area:'上川地方', item:'大雪', level:'中', period:'27日 00–12时' } ],
+    green:[], gray:[]
+  };
+  function jma(level, i){
+    const j = { forecast:FC[level], early:EARLY[level], earlyNote:'到26日为止无［中］［高］' };
+    if (i <= 2) {
+      const f = SEV[level] || .3, cols = [];
+      for (let d = 0; d < 2; d++) for (let h = 0; h < 24; h += 3) cols.push(`${pad(h)}-${pad(h + 3)}`);
+      j.timeline = [ { area:'石狩地方', cols,
+          wind: cols.map((c, k) => Math.round(4 + 8 * f + ((k * 5) % 4))),
+          snow6h: cols.map((c, k) => Math.round(f * 3 * (k % 5 === 0 ? 1.5 : 1))) },
+        { area:'上川地方', cols,
+          wind: cols.map((c, k) => Math.round(3 + 6 * f + ((k * 3) % 3))),
+          snow6h: cols.map((c, k) => Math.round(f * 4 * (k % 4 === 0 ? 1.4 : 1))) } ];
+    }
+    return j;
+  }
+
+  const A = { id:'A', short:'一日游', kind:'timeline', name:'旭山·美瑛·白金一日游',
+    desc:'札幌出发，走道央道到旭川，旭山动物园、美瑛、白金青い池，傍晚回程。按当天往返排。',
+    days: DAYS.map((d, i) => {
+      const a = AHEAD[i], pat = ['ggggg','ggggg','goorr','orrrr','gooog','ggoog','ggggg','yyyyy'][i];
+      return { date:d[0], label:d[1], dow:d[2], isToday:i === 0, trend:i >= 3, level:a.level, headline:a.headline, reasons:a.reasons, missing:a.missing,
+        segments: SEGS.map((s, k) => { const L = LV[pat[k]];
+          return { id:s.id, name:s.name, time:s.time, places:s.places, level:L,
+            reasons:[{ level:L, text:SR[s.kind][L], src:SRC[L] }], raw:raw(s.pts, s.h[0], s.h[1], L) }; }),
+        jma: jma(a.level, i) };
+    }) };
+
+  /* 路线乙：格子表 */
+  const COLS = ['06–09','09–12','12–15','15–18','18–21','21–24'];
+  const BROWS = [ { id:'B1', name:'札樽道段', places:'小樽—銭函—札幌西', pts:['小樽','札幌'] },
+                  { id:'B2', name:'道央道段', places:'札幌南—北広島—恵庭—千歳—新千歳空港', pts:['北広島','千歳'] } ];
+  const BR = {
+    B1:{ red:'銭函一带面向石狩湾，西北风强时吹雪使能见度骤降，常见限速或临时封闭',
+         orange:'沿海段风速 8–10 m/s 并有降雪，能见度时好时坏',
+         green:'风、雪都低于注意线', gray:'该时段缺少模式数据，不做判定' },
+    B2:{ red:'恵庭—千歳一带降雪集中，除雪与限速可能让机场方向耗时大增',
+         orange:'降雪 1–2 cm/h，路面积雪，赶飞机要多留时间',
+         green:'降雪很弱，路面以湿滑为主', gray:'该时段缺少模式数据，不做判定' }
+  };
+  const BPAT = [ ['gggggg','gggggg'], ['gggoog','ggoogg'], ['ggoroo','goorro'], ['orrrro','orrrrr'],
+                 ['ooggog','ooooog'], ['gggyyy','ggoyyy'], ['gggggg','gggggg'], ['yyyyyy','yyyyyy'] ];
+  const BHEAD = [
+    { headline:'全天未见封路级信号，早晨沿海段留意路面湿滑。', reasons:[{ text:'风与降雪都低于注意线', src:'数值模式 · AMeDAS' }] },
+    { headline:'傍晚前后沿海段风雪增强，赶下午的航班要早出门。', reasons:[{ level:'orange', text:'15–21 时札樽道沿海段风速 8–10 m/s 并有降雪', src:'数值模式 · 气象厅预报' }, { level:'orange', text:'道央道 09–15 时降雪 1–2 cm/h', src:'数值模式' }], missing:['上川地方 时系列'] },
+    { headline:'下午到夜里吹雪明显，札樽道沿海段可能限速或封闭。', reasons:[{ level:'red', text:'12–18 时銭函一带阵风 15 m/s 以上并伴有降雪', src:'气象厅 风雪早期注意情报（高）' }, { level:'orange', text:'道央道 09–15 时和 21–24 时降雪偏强', src:'数值模式' }] },
+    { headline:'强冬型，全天风雪，不建议开车去机场（趋势）。', reasons:[{ level:'red', text:'札樽道、道央道多个时段风雪都在高风险线以上', src:'数值模式（趋势，不确定性较大）' }] },
+    { headline:'上午雪还没停，午后趋缓，航班提前量要留足。', reasons:[{ level:'orange', text:'06–12 时降雪 1–2 cm/h，风 8 m/s 左右', src:'数值模式（趋势）' }] },
+    { headline:'前半天尚可，傍晚起模式数据不全，无法判定。', reasons:[{ level:'orange', text:'09–15 时道央道降雪偏弱但有雪', src:'数值模式（趋势）' }, { level:'gray', text:'15 时以后缺少数据，不做判定', src:'' }], missing:['Open-Meteo 28日 15时以后'] },
+    { headline:'高压覆盖，晴到多云，未见封路级信号。', reasons:[{ text:'风小、基本无降雪', src:'数值模式（趋势）' }] },
+    { headline:'超出模式可用范围，数据不全，无法判定。', reasons:[{ level:'gray', text:'只有较粗的趋势数据，不足以判断到小时', src:'' }], missing:['气象厅 地方预报（超出发表范围）', 'Open-Meteo 逐小时数据'] }
+  ];
+  const ORDER = ['green','gray','orange','red'];
+  const worst = ls => ls.reduce((a, b) => ORDER.indexOf(b) > ORDER.indexOf(a) ? b : a, 'green');
+  const B = { id:'B', short:'机场线', kind:'grid', name:'小樽⇔札幌⇔新千岁机场线',
+    desc:'札樽道加道央道，小樽、札幌与新千岁机场之间往返，主要看赶航班时的路况。',
+    days: DAYS.map((d, i) => {
+      const cells = BROWS.map((r, ri) => COLS.map((c, ci) => { const L = LV[BPAT[i][ri][ci]], h0 = 6 + ci * 3;
+        return { level:L, reasons:[{ level:L, text:BR[r.id][L], src:SRC[L] }], raw:raw(r.pts, h0, h0 + 3, L) }; }));
+      const level = worst(cells.flat().map(c => c.level));
+      const h = BHEAD[i];
+      return { date:d[0], label:d[1], dow:d[2], isToday:i === 0, trend:i >= 3, level, headline:h.headline, reasons:h.reasons, missing:h.missing || [],
+        grid:{ rows:BROWS.map(r => ({ id:r.id, name:r.name, places:r.places })), cols:COLS, cells }, jma: jma(level, i) };
+    }) };
+
+  return {
+    meta:{ title:'北海道冬季路线出行参考', freshness:'气象厅 11/23 05:00 发布 · 3 分钟前取得', rulesVersion:'规则 v0.3（2026-11-22）', loading:false, generatedAt:'2026-11-23T01:20:00+09:00' },
+    disclaimerShort:'这是按气象数据推算的参考，不是道路封闭或通行许可信息；出发前请再看官方道路情报。',
+    disclaimerLong:'本页按气象厅的预报、情报与数值模式的格点数据，用固定规则推算路线风险等级，仅供出行前参考。“未见封路级信号”只表示气象数据里没有出现达到规则线的信号，不代表道路畅通或可以放心行驶。道路是否封闭、限速、需要防滑链，以道路管理者和警方的实时信息为准。作者不对依据本页做出的出行决定负责。',
+    banners:[
+      { level:'orange', text:'石狩·空知·后志地方气象解说情报（大雪·风雪）第2号 11/21 05:31 发布', url:'https://www.jma.go.jp/bosai/' },
+      { level:'info', text:'第4天以后数值模式分歧变大，只用来排日程，出发前一两天再看一次。' }
+    ],
+    routes:[A, B],
+    amedas:{ status:'ok', time:'11/23 01:00', rows:[
+      { name:'札幌', temp:-0.7, wind:1.2, depth:7, s24:1 }, { name:'岩見沢', temp:-1.9, wind:2.4, depth:12, s24:3 },
+      { name:'滝川', temp:-2.3, wind:1.8, depth:15, s24:2 }, { name:'深川', temp:-3.1, wind:2.0, depth:18, s24:4 },
+      { name:'旭川', temp:-3.6, wind:0.9, depth:21, s24:2 }, { name:'美瑛', temp:-4.4, wind:null, depth:null, s24:3 },
+      { name:'小樽', temp:0.2, wind:3.8, depth:5, s24:0 }, { name:'新千歳空港', temp:-1.1, wind:2.6, depth:9, s24:1 } ] },
+    links:[
+      { group:'道路', items:[
+        { name:'JARTIC 道路交通情报', url:'https://www.jartic.or.jp/', note:'实时封路与限速（需先同意利用条款）' },
+        { name:'DRIVE TRAFFIC（高速道路情报）', url:'https://www.drivetraffic.jp/', note:'NEXCO 各段封闭、限速与摄像头' },
+        { name:'北海道开发局 道路情报', url:'https://northern-road.jp/navi/', note:'国道的封闭与路面状况、实时摄像头' } ] },
+      { group:'气象', items:[
+        { name:'气象厅 防灾气象情报', url:'https://www.jma.go.jp/bosai/', note:'警报、注意报与早期注意情报的原文' },
+        { name:'气象厅 AMeDAS 实测图', url:'https://www.jma.go.jp/bosai/amedas/', note:'各站气温、风速、积雪' } ] },
+      { group:'交通', items:[
+        { name:'JR北海道 运行情况', url:'https://www3.jrhokkaido.co.jp/webunkou/', note:'路上不能走时的替代选择' },
+        { name:'新千岁机场 航班信息', url:'https://www.new-chitose-airport.jp/ja/flight/', note:'赶飞机前确认是否延误' } ] }
+    ],
+    rulesText:[
+      '风：阵风 15 m/s 以上且有降雪，记为高风险；平均风速 8 m/s 以上，记为注意。',
+      '雪：降雪 3 cm/h 以上记为高风险；1 cm/h 以上记为注意。',
+      '气温在 0℃ 上下且有降水时，山路按结冰处理，至少记为注意。',
+      '气象厅发出“早期注意情报”的［高］，对应路线所在地区的相应时段至少记为高风险；［中］至少记为注意。',
+      '只要缺少关键数据，对应时段记为“无法判定”，不会用“未见封路级信号”顶替。',
+      '第4天以后只用数值模式的趋势，不用来做到小时的判断。'
+    ],
+    sources:[
+      { name:'气象厅 地方预报与解说情报', status:'ok', reportTime:'11/23 05:00', note:'' },
+      { name:'气象厅 早期注意情报', status:'ok', reportTime:'11/23 05:00', note:'' },
+      { name:'气象厅 时系列（上川地方）', status:'stale', reportTime:'11/22 17:00', note:'超过 12 小时未更新，已降级为参考' },
+      { name:'气象厅 时系列（空知地方）', status:'error', reportTime:'', note:'取得失败，空知地方的时系列缺失，相关时段按无法判定处理' },
+      { name:'Open-Meteo 数值模式', status:'ok', reportTime:'11/23 01:00', note:'未做高度订正' },
+      { name:'AMeDAS 实测', status:'ok', reportTime:'11/23 01:00', note:'' }
+    ],
+    attribution:[
+      '气象数据：日本气象厅，按政府标准利用规约加工。',
+      '数值模式：Open-Meteo.com（CC BY 4.0）。',
+      '道路封闭与限速信息不由本页提供，请以官方道路情报为准。'
+    ]
+  };
+}
+const MOCK_VIEW = buildMock();
+
+/* 加载：有真实数据就用真实数据，否则用样例预览 */
+render(window.VIEW || MOCK_VIEW);
+</script>
+</body>
+</html>

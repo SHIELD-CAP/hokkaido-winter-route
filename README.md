@@ -4,7 +4,7 @@
 
 - 路线甲：札幌—旭山動物園—美瑛—白金（青い池）一日游，回程走道道353、国道237、道道135、国道452 到三笠IC 上道央道。
 - 路线乙：小樽⇔札幌⇔新千歳空港（札樽道、道央道）。
-- 公开网站：https://hokkaido-winter-route.netlify.app （2026-11-25 起按 v4 的网站版规则计算：只看天气，不含封路实况和预告、JR 停运、tenki.jp 和 AMeDAS 实况；在看网页的那台设备上直接向气象厅和 Open-Meteo 取数）。
+- 公开网站：https://hokkaido-winter-route.netlify.app （2026-11-25 23:16 起按 v6 的网站版规则计算：只看天气，含雪带规则和当天 AMeDAS 实况一条，不含封路实况和预告、JR 停运、tenki.jp；在看网页的那台设备上直接向气象厅和 Open-Meteo 取数）。源码在 `site/`，说明见 `site/README.md`。
 
 ## 目录
 
