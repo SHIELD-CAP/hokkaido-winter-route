@@ -1,0 +1,40 @@
+name: backtest
+
+# 雪带规则回测：改了脚本或标签就自动重跑，也可以在 Actions 页面手动运行。
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/backtest_snowband.py'
+      - 'data/labels.csv'
+      - 'data/obs/**'
+      - '.github/workflows/backtest.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backtest
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: 回测
+        run: python3 scripts/backtest_snowband.py
+      - name: 提交结果
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add data/backtest
+          if git diff --cached --quiet; then echo '结果没有变化'; exit 0; fi
+          git commit -m "回测结果 $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3; do
+            git pull --rebase && git push && exit 0
+            sleep 7
+          done
+          exit 1

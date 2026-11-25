@@ -8,8 +8,12 @@
 
 ## 目录
 
-- `rules/v4.md`：判定规则，晚间日报（20:20，看未来 7 天）和晨间复查（06:20，看当天和第二天）共用的唯一版本。
+- `rules/v6.md`：现行判定规则（2026-11-25 晚起），晚间日报（20:20，看未来 7 天）和晨间复查（06:20，看当天和第二天）共用。`rules/v4.md` 是上一版，留作对照。
+- `analysis/`：复盘和审阅记录。`2026-11-25_漏报与雪带规则.md` 说明 v6 为什么加雪带规则、依据哪些数据。
 - `data/closures.csv`：高速封路日志，从 2025–26 年冬季开始，每条写开始、解除、区间、原因、出处和核对程度，用来回测规则。
+- `data/labels.csv`：逐日标签（哪天一日游高速段、机场线高速段封了路，哪些日子逐日核对过）。
+- `data/obs/`：岩見沢、札幌两站 2025–26 冬季和本季的逐时实测。
+- `data/backtest/`、`scripts/backtest_snowband.py`：雪带规则回测，改了脚本或标签，GitHub Actions 会自动重跑（`.github/workflows/backtest.yml`）。
 - `data/latest/`、`data/archive/`：GitHub Actions 定时向 Open-Meteo 取的 MSM、ECMWF 数值，以及气象厅产品的存档；说明见 `data/README.md`。两个定时任务取 Open-Meteo 被拒时读这里。
 - `state/`：预留给每次判定的记录，目前没有在用。两个定时任务运行时没有这个仓库的写权限（2026-11-25 测试：任务运行环境里没有"添加仓库"工具），所以暂时不往这里写；格式说明见 `state/README.md`。
 
