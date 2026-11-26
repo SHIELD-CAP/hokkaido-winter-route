@@ -576,9 +576,10 @@ function render(view){
   const m = view.meta || {};
   let html = renderHeader(view);
   if (m.loading) html += renderLoading();
-  else html += renderBanners(view) + renderRoutes(view) + renderAmedas(view) + renderLinks(view) + renderRules(view) + renderSources(view);
+  else html += renderBanners(view) + renderRoutes(view) + '<div id="bandmap-slot"></div>' + renderAmedas(view) + renderLinks(view) + renderRules(view) + renderSources(view);
   html += renderFooter(view);
   app.innerHTML = html;
+  if (window.mountBandMap) window.mountBandMap(app.querySelector('#bandmap-slot'));
   window.scrollTo(0, y);
   if (fk) { const el = app.querySelector(`[data-fk="${fk}"]`); if (el && !el.disabled) el.focus({ preventScroll: true }); }
 }

@@ -5,7 +5,7 @@ import re, pathlib, sys
 
 root = pathlib.Path(__file__).parent
 ui = (root / 'ui' / 'ui.html').read_text(encoding='utf-8')
-engine = (root / 'src' / 'engine.js').read_text(encoding='utf-8')
+engine = (root / 'src' / 'engine.js').read_text(encoding='utf-8') + '\n' + (root / 'src' / 'bandmap.js').read_text(encoding='utf-8')
 
 start = ui.index('/* =====================================================================\n * 样例数据')
 end_marker = "render(window.VIEW || MOCK_VIEW);"
@@ -30,6 +30,6 @@ dist.mkdir(exist_ok=True)
     "  Referrer-Policy: no-referrer\n"
     "  X-Robots-Tag: noindex\n"
     "  Cache-Control: public, max-age=300\n"
-    "  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://www.jma.go.jp https://api.open-meteo.com https://ensemble-api.open-meteo.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\n",
+    "  Content-Security-Policy: default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://www.jma.go.jp https://api.open-meteo.com https://ensemble-api.open-meteo.com https://raw.githubusercontent.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'\n",
     encoding='utf-8')
 print('dist/index.html', len(out.encode('utf-8')), 'bytes')
