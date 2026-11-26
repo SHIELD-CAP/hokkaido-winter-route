@@ -2,6 +2,7 @@
 // 做三件事：
 //   1. 向 Open-Meteo 取 MSM（日本气象厅中尺度模式）和 ECMWF IFS 的格点数值，写进 data/latest/，供网站和两个定时任务在自己取不到时读取；
 //   2. 把这一轮的 MSM 存档（data/archive/），以后回测用；
+//   2b. 道央道两侧 20 公里内的 MSM 网格（约 5 公里一格），写进 data/latest/msm_grid.json，供网站的雪带地图和日报的“两侧雪带”提醒用；
 //   3. 气象厅的警报注意报、危险度时间序列、天气预报、早期注意信息、地域时序预报，内容有变化时存档。气象厅网站不保留这些产品的历史版本，不自己存就没有回测材料。
 // 每次每个来源取没取到，都记进 data/fetch_log.csv。
 // 只用 Node 20 自带的功能，不装任何依赖。
@@ -113,6 +114,61 @@ async function openMeteo(key, model, days, past, archive) {
   return norm.init_utc || true;
 }
 
+// 道央道两侧 20 公里内的 MSM 网格。网格和路线折线与 scripts/backtest_band_buffer.py 完全一致。
+const OUT_LINE = [[43.06, 141.35], [43.107, 141.598], [43.142, 141.681], [43.20, 141.76], [43.243, 141.827],
+  [43.334, 141.890], [43.450, 141.915], [43.53, 141.91], [43.72, 142.05]];
+const RET_LINE = OUT_LINE.slice(0, 5);
+function distSide(p, line) {
+  const xy = q => [(q[1] - 141.6) * Math.cos(43.35 * Math.PI / 180) * 111.32, (q[0] - 43.35) * 110.57];
+  const [px, py] = xy(p);
+  let best = [1e9, ''];
+  for (let i = 0; i + 1 < line.length; i++) {
+    const [ax, ay] = xy(line[i]), [bx, by] = xy(line[i + 1]);
+    const dx = bx - ax, dy = by - ay;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+    const d = Math.hypot(px - ax - t * dx, py - ay - t * dy);
+    if (d < best[0]) best = [d, dx * (py - ay) - dy * (px - ax) > 0 ? 'W' : 'E'];
+  }
+  return best;
+}
+function gridPoints() {
+  const out = [];
+  for (let i = 0; 42.90 + i * 0.05 <= 43.95 + 1e-9; i++) {
+    const lat = Math.round((42.90 + i * 0.05) * 1000) / 1000;
+    for (let j = 0; 141.05 + j * 0.0625 <= 142.40 + 1e-9; j++) {
+      const lon = Math.round((141.05 + j * 0.0625) * 10000) / 10000;
+      const [d, side] = distSide([lat, lon], OUT_LINE);
+      if (d <= 20.5) out.push([lat, lon, Math.round(d * 10) / 10, Math.round(distSide([lat, lon], RET_LINE)[0] * 10) / 10, side]);
+    }
+  }
+  return out;
+}
+async function msmGrid() {
+  const pts = gridPoints();
+  const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pts.map(p => p[0]).join(',') + '&longitude=' + pts.map(p => p[1]).join(',') +
+    '&elevation=' + pts.map(() => 'nan').join(',') + '&cell_selection=nearest&hourly=temperature_2m,precipitation&models=jma_msm' +
+    '&timezone=Asia%2FTokyo&past_days=1&forecast_days=3';
+  const res = await get(url);
+  log('open-meteo:msm_grid', res);
+  if (!res.ok) return false;
+  let arr;
+  try { arr = JSON.parse(res.text); } catch { log('open-meteo:msm_grid', { ok: false, status: res.status, text: 'JSON 解析失败' }); return false; }
+  arr = Array.isArray(arr) ? arr : [arr];
+  const time = arr[0].hourly.time;
+  const q = v => (v === null || v === undefined ? null : Math.round(v * 10));
+  const body = {
+    fetched_utc: iso, fetched_jst: jst,
+    source: 'Weather data by Open-Meteo.com (CC BY 4.0); original model: JMA MSM',
+    note: '道央道两侧 20 公里内的 MSM 网格（纬度 0.05°、经度 0.0625°）。points 每项是 [纬度, 经度, 离去程路线公里数, 离回程路线公里数, W=西北侧/E=东南侧]；' +
+      'temp、prec 与 points 同序，每行是逐时的 气温×10（°C）和 降水×10（mm，该时刻之前一小时的合计）；time 是东京时间。',
+    time, points: pts,
+    temp: arr.map(d => d.hourly.temperature_2m.map(q)),
+    prec: arr.map(d => d.hourly.precipitation.map(q))
+  };
+  await write('data/latest/msm_grid.json', JSON.stringify(body));
+  return true;
+}
+
 async function jma() {
   const hashFile = 'data/latest/jma_hashes.json';
   let hashes = {};
@@ -134,12 +190,14 @@ async function jma() {
 
 const msmInit = await openMeteo('msm', 'jma_msm', 4, 2, true);
 const ifsInit = await openMeteo('ifs', 'ecmwf_ifs', 8, 2, false);
+const gridOk = await msmGrid();
 const j = await jma();
 
 const status = {
   fetched_utc: iso, fetched_jst: jst,
   msm: msmInit ? { ok: true, init_utc: msmInit === true ? null : msmInit } : { ok: false },
   ifs: ifsInit ? { ok: true, init_utc: ifsInit === true ? null : ifsInit } : { ok: false },
+  msm_grid: { ok: gridOk },
   jma: { ok: j.ok, of: JMA_JOBS.length, archived_changed: j.changed },
   note: 'msm.json / ifs.json 取不到时保留上一次成功的版本；判断新旧请看 msm.json 里的 fetched_utc 和 init_utc。'
 };
