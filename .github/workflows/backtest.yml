@@ -7,6 +7,7 @@ on:
     branches: [main]
     paths:
       - 'scripts/backtest_snowband.py'
+      - 'scripts/backtest_band_buffer.py'
       - 'data/labels.csv'
       - 'data/obs/**'
       - '.github/workflows/backtest.yml'
@@ -21,11 +22,14 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: 回测
         run: python3 scripts/backtest_snowband.py
+      - name: 加宽格点回测（取数多，失败也不影响上一步的结果提交）
+        continue-on-error: true
+        run: python3 scripts/backtest_band_buffer.py
       - name: 提交结果
         run: |
           git config user.name 'github-actions[bot]'
