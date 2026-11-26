@@ -19,7 +19,7 @@
       where: pt => `离道央道约 ${Math.round(pt[2])} 公里，${pt[4] === 'W' ? '西北侧' : '东南侧'}`
     },
     B: {
-      key: 'bandmap-b', file: 'msm_grid_b.json', title: '雪带地图（MSM，机场线两侧 20 公里）', aria: '机场线两侧雪带地图',
+      key: 'bandmap-b', file: 'msm_grid_b.json', title: '雪带地图（MSM，机场线两侧 20 公里）', aria: '机场线两侧雪带地图', windSnow: true,
       lon0: 140.8, lon1: 141.925, lat0: 42.6, lat1: 43.35, sea: SEA_B,
       route: [['小樽', 43.19, 141.00, 0, -9, 'middle'], ['钱函', 43.14, 141.21, 2, -9, 'middle'], ['札幌', 43.06, 141.35, -8, 4, 'end'],
         ['北广岛', 42.98, 141.56, 8, 4, 'start'], ['惠庭', 42.88, 141.58, -8, 4, 'end'], ['新千岁机场', 42.78, 141.69, 8, 4, 'start']],
@@ -46,7 +46,7 @@
     function build() {
       root = el('details', { class: 'card', 'data-k': cfg.key, id: cfg.key });
       root.innerHTML = `<summary>${cfg.title}<span class="muted bm-sum">点开看</span></summary>` +
-        '<div class="dbody"><p class="muted small" style="margin-bottom:8px">只看，不参与判级。颜色是按气温把降水换算成的降雪量，红框是 3 小时 0.5 ℃ 以下的降水到了雪带红线（7 mm）。图上没有封路信息：日本官方网站的条款不许转载，封路请看页面下方的“官方信息链接”。</p>' +
+        '<div class="dbody"><p class="muted small" style="margin-bottom:8px">只看，不参与判级。颜色是按气温把降水换算成的降雪量，红框是 3 小时 0.5 ℃ 以下的降水到了雪带红线（7 mm）' + (cfg.windSnow ? '，橙框是这一小时平均风 8 m/s 以上并有雪（札樽道封路主要看这个）' : '') + '。图上没有封路信息：日本官方网站的条款不许转载，封路请看页面下方的“官方信息链接”。</p>' +
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><button type="button" class="btn bm-play" style="min-width:56px">播放</button>' +
         '<input type="range" class="bm-sl" min="0" max="1" step="1" value="0" style="flex:1" aria-label="选择时间"></div>' +
         '<div class="bm-time" style="font-weight:700;font-size:15px;margin-bottom:4px">正在读取…</div>' +
@@ -60,7 +60,8 @@
       q('.bm-leg').innerHTML = ['0.5–1', '1–2', '2–3', '3–4', '4–6', '6+'].map((t, i) => `<span style="display:flex;align-items:center;gap:4px"><span style="width:11px;height:11px;border-radius:2px;background:${SNOW_C[i + 1]}"></span>${t}</span>`).join('') +
         '<span>cm/时（雪）</span>' +
         `<span style="display:flex;align-items:center;gap:4px"><span style="width:11px;height:11px;border-radius:2px;background:${RAIN_C[1]}"></span>雨</span>` +
-        '<span style="display:flex;align-items:center;gap:4px"><span style="width:11px;height:11px;border:2px solid #e24b4a"></span>3 小时 ≥7 mm（约 9 cm 雪）</span>';
+        '<span style="display:flex;align-items:center;gap:4px"><span style="width:11px;height:11px;border:2px solid #e24b4a"></span>3 小时 ≥7 mm（约 9 cm 雪）</span>' +
+        (cfg.windSnow ? '<span style="display:flex;align-items:center;gap:4px"><span style="width:11px;height:11px;border:2px solid #ef9f27"></span>风 ≥8 m/s 并有雪</span>' : '');
     }
 
     function load() {
@@ -116,13 +117,21 @@
       return SNOW_C[i];
     }
 
+    // 风 ≥8 m/s 并有雪（这一小时 0.5 ℃ 以下的降水 ≥0.5 mm）：札樽道的吹雪（O1）在格点上的样子，只机场线那张画
+    function windSnowAt(i, k) {
+      if (!cfg.windSnow || !data.wind) return false;
+      const w = data.wind[i][k], p = data.prec[i][k], T = data.temp[i][k];
+      return w != null && p != null && T != null && w >= 80 && p >= 5 && T <= 5;
+    }
+
     function draw() {
       if (!data || !q('.bm-cells')) return;
       q('.bm-cells').querySelectorAll('rect').forEach((r, i) => {
         const p = data.prec[i][idx], T = data.temp[i][idx];
         r.setAttribute('fill', cellColor(p == null ? null : p / 10, T == null ? null : T / 10));
         const c3 = data.cold3[i][idx];
-        r.setAttribute('stroke', c3 != null && c3 >= 7 ? '#e24b4a' : 'none');
+        const ws = windSnowAt(i, idx);
+        r.setAttribute('stroke', c3 != null && c3 >= 7 ? '#e24b4a' : ws ? '#ef9f27' : 'none');
         r.setAttribute('stroke-width', '1.4');
       });
       q('.bm-sl').value = idx;
@@ -140,6 +149,8 @@
         const mm = p / 10, tc = T / 10;
         t += mm < 0.1 ? `这一小时没有降水（${f1(tc)} ℃）` : tc <= 0.5 ? `约 ${f1(mm * ratio(tc))} cm 雪（降水 ${f1(mm)} mm，${f1(tc)} ℃）` : `雨 ${f1(mm)} mm（${f1(tc)} ℃）`;
         if (c3 != null && c3 > 0) t += `；3 小时 0.5 ℃ 以下的降水 ${f1(c3)} mm`;
+        const w = data.wind && data.wind[sel] ? data.wind[sel][idx] : null;
+        if (w != null) t += `；平均风 ${f1(w / 10)} m/s` + (windSnowAt(sel, idx) ? '（风 8 m/s 以上并有雪）' : '');
       }
       q('.bm-info').textContent = t;
     }

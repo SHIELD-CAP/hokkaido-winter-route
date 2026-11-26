@@ -93,5 +93,24 @@ console.log('3. 实况优先：机场线札樽道段今天 12–15 时，着雪�
   ok(accr(snow.c), '0 ℃（不是 1 ℃ 以上的雨）：着雪注意报照常计（' + snow.c.level + '）');
 }
 
+console.log('4. 机场线道央道段的雪带（2026-11-27 加）：北广岛格点 3 小时 8.4 mm 判雪带；4.5–7 mm 之间不判；札樽道段不判雪带');
+{
+  const run = mmPerH => {
+    const RAW = load();
+    calm(RAW, ALL_B);
+    // 明天 12–15 时北广岛格点每小时 mmPerH、−2 ℃
+    setHours(RAW, ['B4'], at(tomorrow, 12), at(tomorrow, 15), (s, j) => { s.P[j] = mmPerH; s.S[j] = mmPerH * 0.7; s.T[j] = -2; });
+    const V = HKR.buildView(RAW, now);
+    const g = dayOf(V, 'B', 1).grid.cells;
+    return { b2: g[1][2], b1: g[0][2], b2next: g[1][3] };
+  };
+  const band = c => (c.reasons || []).filter(r => (r.rule === 'R8' || r.rule === 'O9') && /雪带/.test(r.text));
+  const a = run(2.8), b = run(1.8);
+  ok(band(a.b2).length > 0, '道央道段 12–15 时 3 小时 8.4 mm：有雪带（' + a.b2.level + '）｜' + band(a.b2).map(r => r.rule + ' ' + r.text).join(' / ').slice(0, 200));
+  ok(band(a.b2next).length > 0, '15–18 时（之前 6 小时里有雪带）也有雪带（' + a.b2next.level + '）');
+  ok(band(a.b1).length === 0, '札樽道段不判雪带（' + a.b1.level + '）');
+  ok(band(b.b2).length === 0, '3 小时 5.4 mm：机场线不用 4.5／6 mm 的预警（' + b.b2.level + '）');
+}
+
 console.log(fails ? `\n${fails} 项没通过` : '\n全部通过');
 process.exit(fails ? 1 : 0);
