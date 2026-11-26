@@ -21,12 +21,17 @@
 - 冷降水：气温 ≤0.5 ℃ 那几个小时的降水。
 - 推算视程：用规则里的公式（风速乘 0.81 折到 1.2 m 高）。fresh（地上有能吹起来的新雪）按“之前 24 小时冷降水 ≥0.5 mm、
   之前 12 小时气温高于 0.5 ℃ 的降水 <1 mm，并且当时气温 ≤0 ℃”近似。
+- 不算“除雪通行止”（夜间排雪封闭，多在 22 时开始，札幌南IC—札幌JCT、札幌西IC—札幌JCT 一带）：它是事先公告的作业，
+  规则里由“官方预告”（R6）和 K3 管，前一天的天气预报本来就看不出来。被排除的次数写在输出里。
+- 另按“封路事件”算一遍：把这一段各小段、两个方向的天气类封闭区间并起来（间隔不到 1 小时的连成一次），
+  每次封路的开始时刻之前 6 小时到之后 1 小时之间，规则有没有亮过。这样连着封好几天（例如 2026-01-25 大雪后札樽道封了四天）
+  只算一次，后几天不会被当成“漏报”；误报仍按“天”算（亮了的日子里，这一段当天 06–24 时有没有封）。
 - 只回测数值模式这一半；气象厅的信号去年没有存档。
 
 用法：python3 scripts/backtest_airport.py（要能连 previous-runs-api.open-meteo.com，GitHub Actions 里跑）
 输出：data/backtest/airport.md、data/backtest/airport.json
 """
-import datetime as dt, gzip, json, math, pathlib, sys, time, urllib.error, urllib.parse, urllib.request
+import datetime as dt, gzip, json, math, pathlib, re, sys, time, urllib.error, urllib.parse, urllib.request
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / 'scripts'))
@@ -233,6 +238,32 @@ def window_feats(series, names, d, h0, h1):
     return {'c3': c3, 'c6': c6, 'vis': v_min, 'ws': ws}
 
 
+def hour_feats(series, names, t):
+    c3 = c6 = 0.0
+    v_min = 1e9
+    ws = {0.5: 0.0, 1: 0.0, 2: 0.0}
+    for n in names:
+        x = series[n].get(t)
+        if not x:
+            continue
+        c3 = max(c3, x['c3']); c6 = max(c6, x['c6']); v_min = min(v_min, x['vis'])
+        for p in ws:
+            if x['c1'] >= p and x['V'] > ws[p]:
+                ws[p] = x['V']
+    return {'c3': c3, 'c6': c6, 'vis': v_min, 'ws': ws}
+
+
+def episodes(spans, units, days):
+    iv = sorted((a, b) for (road, i, s), lst in spans.items() if (road, i) in units for a, b in lst)
+    out = []
+    for a, b in iv:
+        if out and a <= out[-1][1] + dt.timedelta(hours=1):
+            out[-1][1] = max(out[-1][1], b)
+        else:
+            out.append([a, b])
+    return [(a, b) for a, b in out if a.date() in days]
+
+
 def stats(pairs):
     fire = sum(1 for f, c in pairs if f); hit = sum(1 for f, c in pairs if f and c)
     closed = sum(1 for f, c in pairs if c)
@@ -246,6 +277,8 @@ def main():
     L = B.labels('机场线高速段封路')
     checked = sorted(dt.date.fromisoformat(d) for d, (c, _) in L.items() if c == '是' and B.in_season(L, d))
     ev, cover = XL.load()
+    _, _, spans_all = XL.simulate(ev, cover, with_spans=True)
+    XL.WEATHER = re.compile('吹雪|視界|凍結|(?<!除)雪')   # 除雪通行止 不算天气类
     _, _, spans = XL.simulate(ev, cover, with_spans=True)
     pts = grid()
     print(f'格点 {len(pts)} 个，核对过的日子 {len(checked)} 天', flush=True)
@@ -260,14 +293,22 @@ def main():
         units = SEG_UNITS[seg]
         lab = {d: closed_slots(spans, units, d) for d in checked}
         n_day = sum(1 for d in checked if any(lab[d])); n_slot = sum(sum(v) for v in lab.values())
-        seg_res = {'closed_days': n_day, 'closed_slots': n_slot,
+        n_snowrm = len(episodes(spans_all, units, set(checked))) - len(episodes(spans, units, set(checked)))
+        seg_res = {'closed_days': n_day, 'closed_slots': n_slot, 'snow_removal_episodes_excluded': n_snowrm,
                    'closed_dates': [d.isoformat() for d in checked if any(lab[d])], 'groups': {}}
-        md += [f'## {SEG_NAME[seg]}', '', f'06–24 时封过路的日子 {n_day} 天，封着的时段 {n_slot} 个（共 {len(checked) * 6} 个）。', '']
+        md += [f'## {SEG_NAME[seg]}', '', f'06–24 时因天气封过路的日子 {n_day} 天，封着的时段 {n_slot} 个（共 {len(checked) * 6} 个）。'
+               f'另有除雪通行止（夜间排雪）约 {n_snowrm} 次没有算进来。', '']
         for gname, km in GROUPS:
             names = [n for n, p in pts.items() if dist(p, SEG_LINE[seg]) <= km]
             feats = {d: [window_feats(series, names, d, h0, h1) for h0, h1 in SLOTS] for d in checked}
+            hours = sorted({t for n in names for t in series[n]})
+            hf = {t: hour_feats(series, names, t) for t in hours}
+            eps = episodes(spans, units, set(checked))
             rows = []
             for rname, fn in RULES:
+                fire_h = {t for t in hours if fn(hf[t])}
+                caught = [a for a, b in eps if any((a.replace(minute=0) + dt.timedelta(hours=k)) in fire_h for k in range(-6, 2))]
+                ev_missed = [a.strftime('%y-%m-%d %H:%M') for a, b in eps if a not in caught]
                 slot_pairs, day_pairs, fired_days, missed_days = [], [], [], []
                 for d in checked:
                     fs = [fn(f) for f in feats[d]]
@@ -278,22 +319,29 @@ def main():
                         fired_days.append(d.isoformat()[2:] + ('●' if dc else '○'))
                     elif dc:
                         missed_days.append(d.isoformat()[2:])
-                rows.append({'rule': rname, 'day': stats(day_pairs), 'slot': stats(slot_pairs),
+                ds = stats(day_pairs)
+                er = len(caught) / len(eps) if eps else 0.0
+                ef1 = 2 * ds['precision'] * er / (ds['precision'] + er) if ds['precision'] + er else 0.0
+                rows.append({'rule': rname, 'day': ds, 'slot': stats(slot_pairs),
+                             'event': {'n': len(eps), 'caught': len(caught), 'recall': round(er, 3), 'f1': round(ef1, 3),
+                                       'missed': ev_missed},
                              'fired_days': fired_days, 'missed_days': missed_days})
-            seg_res['groups'][gname] = {'n_points': len(names), 'rules': rows}
-            top = sorted(rows, key=lambda r: (-r['day']['f1'], -r['slot']['f1']))[:12]
-            md += [f'### {gname}（{len(names)} 个格点），按“天”的 F1 排前 12', '',
-                   '| 门槛 | 亮的天数 | 其中封路 | 准确率 | 召回率 | F1 | 时段：亮／中／准确率／召回率 |', '|---|---|---|---|---|---|---|']
+            seg_res['groups'][gname] = {'n_points': len(names), 'episodes': len(eps), 'rules': rows}
+            top = sorted(rows, key=lambda r: (-r['event']['f1'], -r['day']['f1']))[:12]
+            md += [f'### {gname}（{len(names)} 个格点），封路事件 {len(eps)} 次，按“事件召回率和天的准确率”的 F1 排前 12', '',
+                   '| 门槛 | 亮的天数 | 其中当天封路 | 准确率 | 事件：接住／共 | 事件召回率 | F1 | 按天的召回率 | 时段：亮／中／准确率／召回率 |',
+                   '|---|---|---|---|---|---|---|---|---|']
             for r in top:
-                a, s = r['day'], r['slot']
-                md.append(f"| {r['rule']} | {a['fired']} | {a['hit']} | {a['precision']:.0%} | {a['recall']:.0%} | {a['f1']:.2f} | "
-                          f"{s['fired']}／{s['hit']}／{s['precision']:.0%}／{s['recall']:.0%} |")
+                a, s, e = r['day'], r['slot'], r['event']
+                md.append(f"| {r['rule']} | {a['fired']} | {a['hit']} | {a['precision']:.0%} | {e['caught']}／{e['n']} | {e['recall']:.0%} | {e['f1']:.2f} | "
+                          f"{a['recall']:.0%} | {s['fired']}／{s['hit']}／{s['precision']:.0%}／{s['recall']:.0%} |")
             r8 = next(r for r in rows if r['rule'] == '3h≥7 或 6h≥10')
-            md += ['', f"对照：一日游的雪带门槛（3h≥7 或 6h≥10）在这一组亮 {r8['day']['fired']} 天，其中封路 {r8['day']['hit']} 天，"
-                       f"漏 {r8['day']['missed']} 天。", '']
-        best = max(seg_res['groups']['沿线']['rules'], key=lambda r: (r['day']['f1'], r['slot']['f1']))
-        md += [f"沿线组 F1 最高的门槛“{best['rule']}”：亮的日子 {'、'.join(best['fired_days']) or '无'}；"
-               f"漏掉的封路日 {'、'.join(best['missed_days']) or '无'}。", '']
+            md += ['', f"对照：一日游的雪带门槛（3h≥7 或 6h≥10）在这一组亮 {r8['day']['fired']} 天，其中当天封路 {r8['day']['hit']} 天；"
+                       f"封路事件接住 {r8['event']['caught']}／{r8['event']['n']} 次。", '']
+        for gname, _ in GROUPS:
+            best = max(seg_res['groups'][gname]['rules'], key=lambda r: (r['event']['f1'], r['day']['f1']))
+            md += [f"{gname}组 F1 最高的门槛“{best['rule']}”：亮的日子 {'、'.join(best['fired_days']) or '无'}（●当天封了 ○没封）；"
+                   f"没接住的封路事件（开始时刻）{'、'.join(best['event']['missed']) or '无'}。", '']
         res['segments'][seg] = seg_res
     (OUT / 'airport.md').write_text('\n'.join(md) + '\n', encoding='utf-8')
     (OUT / 'airport.json').write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding='utf-8')
