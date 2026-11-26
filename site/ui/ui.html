@@ -503,6 +503,7 @@ function renderRoutes(view){
   const dk = dayKey(day, index);
   out += renderStrip(days, index) + renderDayCard(view, day || {});
   out += route.kind === 'grid' ? renderGrid(route, day || {}, dk) : renderTimeline(route, day || {}, dk);
+  out += `<div id="bandmap-slot" data-route="${esc(route.id)}"></div>`;   // 雪带地图放在气象厅发布的内容上方
   out += renderJma(route, day || {}, dk);
   return out + `</div>`;
 }
@@ -576,7 +577,7 @@ function render(view){
   const m = view.meta || {};
   let html = renderHeader(view);
   if (m.loading) html += renderLoading();
-  else html += renderBanners(view) + renderRoutes(view) + '<div id="bandmap-slot"></div>' + renderAmedas(view) + renderLinks(view) + renderRules(view) + renderSources(view);
+  else html += renderBanners(view) + renderRoutes(view) + renderAmedas(view) + renderLinks(view) + renderRules(view) + renderSources(view);
   html += renderFooter(view);
   app.innerHTML = html;
   if (window.mountBandMap) window.mountBandMap(app.querySelector('#bandmap-slot'));
