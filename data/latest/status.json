@@ -1,9 +1,9 @@
 {
- "fetched_utc": "2026-11-26T14:38:31.742Z",
- "fetched_jst": "2026-11-26 23:38 JST",
+ "fetched_utc": "2026-11-26T15:16:33.341Z",
+ "fetched_jst": "2026-11-27 00:16 JST",
  "msm": {
   "ok": true,
-  "init_utc": null
+  "init_utc": "2026-11-26T09:00:00.000Z"
  },
  "ifs": {
   "ok": true,
