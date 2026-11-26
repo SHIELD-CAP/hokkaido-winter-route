@@ -46,7 +46,7 @@
     function build() {
       root = el('details', { class: 'card', 'data-k': cfg.key, id: cfg.key });
       root.innerHTML = `<summary>${cfg.title}<span class="muted bm-sum">点开看</span></summary>` +
-        '<div class="dbody"><p class="muted small" style="margin-bottom:8px">只看，不参与判级。颜色是按气温把降水换算成的降雪量，红框是 3 小时 0.5 ℃ 以下的降水到了雪带红线（7 mm）。</p>' +
+        '<div class="dbody"><p class="muted small" style="margin-bottom:8px">只看，不参与判级。颜色是按气温把降水换算成的降雪量，红框是 3 小时 0.5 ℃ 以下的降水到了雪带红线（7 mm）。图上没有封路信息：日本官方网站的条款不许转载，封路请看页面下方的“官方信息链接”。</p>' +
         '<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><button type="button" class="btn bm-play" style="min-width:56px">播放</button>' +
         '<input type="range" class="bm-sl" min="0" max="1" step="1" value="0" style="flex:1" aria-label="选择时间"></div>' +
         '<div class="bm-time" style="font-weight:700;font-size:15px;margin-bottom:4px">正在读取…</div>' +

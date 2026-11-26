@@ -527,7 +527,7 @@ function renderAmedas(view){
 function renderLinks(view){
   const groups = arr(view.links).filter(g => g && arr(g.items).length);
   if (!groups.length) return '';
-  return `<section class="card" aria-label="官方信息链接"><h3>官方信息链接</h3>` + groups.map(g => `<div class="lg"><h4>${esc(g.group || '')}</h4>` +
+  return `<section class="card" aria-label="官方信息链接"><h3>官方信息链接</h3>` + groups.map(g => `<div class="lg"><h4>${esc(g.group || '')}</h4>` + (g.intro ? `<p class="muted small" style="margin:2px 0 6px">${esc(g.intro)}</p>` : '') +
     arr(g.items).map(it => { const u = safeUrl(it.url); return u ? `<a class="link-item" href="${esc(u)}" target="_blank" rel="noopener"><span class="ln">${esc(it.name || u)}</span>${it.note ? `<span class="lnote">${esc(it.note)}</span>` : ''}</a>` : ''; }).join('') + `</div>`).join('') + `</section>`;
 }
 
