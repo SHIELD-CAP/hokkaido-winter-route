@@ -175,10 +175,10 @@ function gridPointsB() {
   return out;
 }
 
-async function msmGrid(key, pts, note) {
+async function msmGrid(key, pts, note, wind = false) {
   const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pts.map(p => p[0]).join(',') + '&longitude=' + pts.map(p => p[1]).join(',') +
-    '&elevation=' + pts.map(() => 'nan').join(',') + '&cell_selection=nearest&hourly=temperature_2m,precipitation&models=jma_msm' +
-    '&timezone=Asia%2FTokyo&past_days=1&forecast_days=3';
+    '&elevation=' + pts.map(() => 'nan').join(',') + '&cell_selection=nearest&hourly=temperature_2m,precipitation' + (wind ? ',wind_speed_10m&wind_speed_unit=ms' : '') +
+    '&models=jma_msm&timezone=Asia%2FTokyo&past_days=1&forecast_days=3';
   const res = await get(url);
   log('open-meteo:' + key, res);
   if (!res.ok) return false;
@@ -194,6 +194,7 @@ async function msmGrid(key, pts, note) {
     temp: arr.map(d => d.hourly.temperature_2m.map(q)),
     prec: arr.map(d => d.hourly.precipitation.map(q))
   };
+  if (wind) body.wind = arr.map(d => d.hourly.wind_speed_10m.map(q));
   await write(`data/latest/${key}.json`, JSON.stringify(body));
   return true;
 }
@@ -224,7 +225,7 @@ const gridOk = await msmGrid('msm_grid', gridPoints(),
   'temp、prec 与 points 同序，每行是逐时的 气温×10（°C）和 降水×10（mm，该时刻之前一小时的合计）；time 是东京时间。');
 const gridBOk = await msmGrid('msm_grid_b', gridPointsB(),
   '机场线（小樽—钱函—札幌—北广岛—惠庭—新千岁机场）两侧 20 公里内的 MSM 网格，格点与 msm_grid.json 对齐。points 每项是 [纬度, 经度, 离路线公里数, 在路线的哪个方向（N、NE、E、SE、S、SW、W、NW；离路线 2 公里以内为空）]；' +
-  'temp、prec 与 points 同序，每行是逐时的 气温×10（°C）和 降水×10（mm，该时刻之前一小时的合计）；time 是东京时间。');
+  'temp、prec、wind 与 points 同序，每行是逐时的 气温×10（°C）、降水×10（mm，该时刻之前一小时的合计）和 10 m 平均风速×10（m/s）；time 是东京时间。', true);
 const j = await jma();
 
 const status = {
