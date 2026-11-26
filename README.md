@@ -15,7 +15,7 @@
 - `data/obs/`：岩見沢、札幌两站 2025–26 冬季和本季的逐时实测。
 - `data/backtest/`、`scripts/backtest_snowband.py`：雪带规则回测，改了脚本或标签，GitHub Actions 会自动重跑（`.github/workflows/backtest.yml`）。
 - `data/latest/`、`data/archive/`：GitHub Actions 定时向 Open-Meteo 取的 MSM、ECMWF 数值，以及气象厅产品的存档；说明见 `data/README.md`。两个定时任务取 Open-Meteo 被拒时读这里。
-- `state/`：预留给每次判定的记录，目前没有在用。两个定时任务运行时没有这个仓库的写权限（2026-11-25 测试：任务运行环境里没有"添加仓库"工具），所以暂时不往这里写；格式说明见 `state/README.md`。
+- `state/`：预留给每次判定的记录，目前没有在用。2026-11-26 实测：接入了本仓库的定时任务，运行时可以直接 `git clone`、`git push` 写进来；两个每日任务建于本仓库之前，还没有实测能不能写。格式和测试经过见 `state/README.md`。
 
 ## 这里不放什么
 
