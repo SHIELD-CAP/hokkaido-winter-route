@@ -7,6 +7,7 @@
 - `backtest/`：雪带规则回测结果（加宽格点的回测由 `scripts/backtest_band_buffer.py` 生成，结果在 `band_buffer.md`，逐时网格缓存在 `msm_prev_day1_cold_grid.json.gz`；`band_demo_frames.json` 是演示用的三个时段），由 `scripts/backtest_snowband.py` 生成，口径写在脚本开头。`msm_prev_day1_cold_hourly.json.gz` 是同一次运行取到的、前一天那一轮 MSM 在各格点的逐时冷降水（为 0 的小时不列），本地没法连 Open-Meteo 往期预报接口时，可以拿它试别的时间窗和门槛。
 - `latest/msm.json`、`latest/ifs.json`：GitHub Actions（`.github/workflows/fetch-data.yml`）每 3 小时、另在日本时间 05:40 和 19:40 向 Open-Meteo 取的 MSM 和 ECMWF IFS 格点数值，按取样点编号整理。这一次取不到时，保留上一次成功的版本；新旧看文件里的 `fetched_utc`（取数时刻）和 `init_utc`（模式起算时刻）。
 - `latest/msm_grid.json`：同一个工作流每 3 小时取的道央道两侧 20 公里内的 MSM 网格（约 5 公里一格，196 个点，前一天到后天逐时），只给“两侧雪带”提醒和网站的雪带地图用，不判级。points 每项是 [纬度, 经度, 离去程路线公里数, 离回程路线公里数, W 或 E]；temp、prec 是逐时的 气温×10 和 降水×10（mm）。
+- `latest/msm_grid_b.json`：同一个工作流取的机场线（小樽—札幌—新千岁机场）两侧 20 公里内的 MSM 网格，格点与 `msm_grid.json` 对齐，160 个点。points 每项是 [纬度, 经度, 离路线公里数, 在路线的哪个方向]，其余同上。只给网站机场线那一栏的雪带地图用。
 - `latest/status.json`：最近一次运行，各来源取没取到。
 - `fetch_log.csv`：每次运行、每个来源的 HTTP 状态码。用来统计 GitHub 这边取 Open-Meteo 的成功率。
 - `archive/年/月/日/`：每次运行存一份 MSM；气象厅的警报注意报、危险度时间序列、天气预报、早期注意信息、地域时序预报，内容有变化时存一份。都用 gzip 压缩，原样保存，没有加工。气象厅网站不保留这些产品的历史版本，这里存下来是为了以后回测。

@@ -3,6 +3,7 @@
 //   1. 向 Open-Meteo 取 MSM（日本气象厅中尺度模式）和 ECMWF IFS 的格点数值，写进 data/latest/，供网站和两个定时任务在自己取不到时读取；
 //   2. 把这一轮的 MSM 存档（data/archive/），以后回测用；
 //   2b. 道央道两侧 20 公里内的 MSM 网格（约 5 公里一格），写进 data/latest/msm_grid.json，供网站的雪带地图和日报的“两侧雪带”提醒用；
+//       机场线两侧 20 公里的同样网格写进 data/latest/msm_grid_b.json，只给网站的机场线雪带地图用；
 //   3. 气象厅的警报注意报、危险度时间序列、天气预报、早期注意信息、地域时序预报，内容有变化时存档。气象厅网站不保留这些产品的历史版本，不自己存就没有回测材料。
 // 每次每个来源取没取到，都记进 data/fetch_log.csv。
 // 只用 Node 20 自带的功能，不装任何依赖。
@@ -143,29 +144,57 @@ function gridPoints() {
   }
   return out;
 }
-async function msmGrid() {
-  const pts = gridPoints();
+
+// 机场线（小樽—札幌—新千岁机场）两侧 20 公里内的 MSM 网格。折线用日报的 6 个取样点；格点与上面的网格对齐。
+const LINE_B = [[43.19, 141.00], [43.14, 141.21], [43.06, 141.35], [42.98, 141.56], [42.88, 141.58], [42.78, 141.69]];
+function distDir(p, line) {
+  const xy = q => [(q[1] - 141.6) * Math.cos(43.35 * Math.PI / 180) * 111.32, (q[0] - 43.35) * 110.57];
+  const [px, py] = xy(p);
+  let best = [1e9, 0, 0];
+  for (let i = 0; i + 1 < line.length; i++) {
+    const [ax, ay] = xy(line[i]), [bx, by] = xy(line[i + 1]);
+    const dx = bx - ax, dy = by - ay;
+    const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)));
+    const ex = px - ax - t * dx, ey = py - ay - t * dy, d = Math.hypot(ex, ey);
+    if (d < best[0]) best = [d, ex, ey];
+  }
+  const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+  const dir = best[0] < 2 ? '' : dirs[(Math.round(Math.atan2(best[1], best[2]) * 180 / Math.PI / 45) + 8) % 8];
+  return [best[0], dir];
+}
+function gridPointsB() {
+  const out = [];
+  for (let i = -6; 42.90 + i * 0.05 <= 43.40 + 1e-9; i++) {
+    const lat = Math.round((42.90 + i * 0.05) * 1000) / 1000;
+    for (let j = -5; 141.05 + j * 0.0625 <= 141.99 + 1e-9; j++) {
+      const lon = Math.round((141.05 + j * 0.0625) * 10000) / 10000;
+      const [d, dir] = distDir([lat, lon], LINE_B);
+      if (d <= 20.5) out.push([lat, lon, Math.round(d * 10) / 10, dir]);
+    }
+  }
+  return out;
+}
+
+async function msmGrid(key, pts, note) {
   const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + pts.map(p => p[0]).join(',') + '&longitude=' + pts.map(p => p[1]).join(',') +
     '&elevation=' + pts.map(() => 'nan').join(',') + '&cell_selection=nearest&hourly=temperature_2m,precipitation&models=jma_msm' +
     '&timezone=Asia%2FTokyo&past_days=1&forecast_days=3';
   const res = await get(url);
-  log('open-meteo:msm_grid', res);
+  log('open-meteo:' + key, res);
   if (!res.ok) return false;
   let arr;
-  try { arr = JSON.parse(res.text); } catch { log('open-meteo:msm_grid', { ok: false, status: res.status, text: 'JSON 解析失败' }); return false; }
+  try { arr = JSON.parse(res.text); } catch { log('open-meteo:' + key, { ok: false, status: res.status, text: 'JSON 解析失败' }); return false; }
   arr = Array.isArray(arr) ? arr : [arr];
   const time = arr[0].hourly.time;
   const q = v => (v === null || v === undefined ? null : Math.round(v * 10));
   const body = {
     fetched_utc: iso, fetched_jst: jst,
     source: 'Weather data by Open-Meteo.com (CC BY 4.0); original model: JMA MSM',
-    note: '道央道两侧 20 公里内的 MSM 网格（纬度 0.05°、经度 0.0625°）。points 每项是 [纬度, 经度, 离去程路线公里数, 离回程路线公里数, W=西北侧/E=东南侧]；' +
-      'temp、prec 与 points 同序，每行是逐时的 气温×10（°C）和 降水×10（mm，该时刻之前一小时的合计）；time 是东京时间。',
-    time, points: pts,
+    note, time, points: pts,
     temp: arr.map(d => d.hourly.temperature_2m.map(q)),
     prec: arr.map(d => d.hourly.precipitation.map(q))
   };
-  await write('data/latest/msm_grid.json', JSON.stringify(body));
+  await write(`data/latest/${key}.json`, JSON.stringify(body));
   return true;
 }
 
@@ -190,7 +219,12 @@ async function jma() {
 
 const msmInit = await openMeteo('msm', 'jma_msm', 4, 2, true);
 const ifsInit = await openMeteo('ifs', 'ecmwf_ifs', 8, 2, false);
-const gridOk = await msmGrid();
+const gridOk = await msmGrid('msm_grid', gridPoints(),
+  '道央道两侧 20 公里内的 MSM 网格（纬度 0.05°、经度 0.0625°）。points 每项是 [纬度, 经度, 离去程路线公里数, 离回程路线公里数, W=西北侧/E=东南侧]；' +
+  'temp、prec 与 points 同序，每行是逐时的 气温×10（°C）和 降水×10（mm，该时刻之前一小时的合计）；time 是东京时间。');
+const gridBOk = await msmGrid('msm_grid_b', gridPointsB(),
+  '机场线（小樽—钱函—札幌—北广岛—惠庭—新千岁机场）两侧 20 公里内的 MSM 网格，格点与 msm_grid.json 对齐。points 每项是 [纬度, 经度, 离路线公里数, 在路线的哪个方向（N、NE、E、SE、S、SW、W、NW；离路线 2 公里以内为空）]；' +
+  'temp、prec 与 points 同序，每行是逐时的 气温×10（°C）和 降水×10（mm，该时刻之前一小时的合计）；time 是东京时间。');
 const j = await jma();
 
 const status = {
@@ -198,6 +232,7 @@ const status = {
   msm: msmInit ? { ok: true, init_utc: msmInit === true ? null : msmInit } : { ok: false },
   ifs: ifsInit ? { ok: true, init_utc: ifsInit === true ? null : ifsInit } : { ok: false },
   msm_grid: { ok: gridOk },
+  msm_grid_b: { ok: gridBOk },
   jma: { ok: j.ok, of: JMA_JOBS.length, archived_changed: j.changed },
   note: 'msm.json / ifs.json 取不到时保留上一次成功的版本；判断新旧请看 msm.json 里的 fetched_utc 和 init_utc。'
 };
