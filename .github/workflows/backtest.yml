@@ -8,6 +8,7 @@ on:
     paths:
       - 'scripts/backtest_snowband.py'
       - 'scripts/backtest_band_buffer.py'
+      - 'scripts/backtest_airport.py'
       - 'data/labels.csv'
       - 'data/obs/**'
       - '.github/workflows/backtest.yml'
@@ -30,6 +31,9 @@ jobs:
       - name: 加宽格点回测（取数多，失败也不影响上一步的结果提交）
         continue-on-error: true
         run: python3 scripts/backtest_band_buffer.py
+      - name: 机场线回测（第一次要取数，失败也不影响前面的结果提交）
+        continue-on-error: true
+        run: python3 scripts/backtest_airport.py
       - name: 提交结果
         run: |
           git config user.name 'github-actions[bot]'

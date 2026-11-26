@@ -84,8 +84,9 @@ def units_dirs(road, a, arrow, b, warn):
     return [(road, i) for i in range(lo, hi)], (['+', '-'] if arrow == '⇔' else (['+'] if p[b] > p[a] else ['-']))
 
 
-def simulate(ev, cover):
+def simulate(ev, cover, with_spans=False):
     """返回 {日期: {'A': bool, 'B': bool, 'A_ev': [...], 'B_ev': [...]}}，只含覆盖段里的日子。
+    with_spans=True 时另外返回每段（道路、小段序号、方向 +/-）的天气类封闭区间 [(起, 止), ...]，给机场线回测用。
     每个覆盖段开始时状态清零：段前已经在封、段内才解除的封闭，靠“当天有解除”记上。"""
     warn = set()
     state = collections.defaultdict(set)
@@ -151,6 +152,8 @@ def simulate(ev, cover):
                 if s_ == sign and (road, i) in units and any(a < w1 and b > w0 for a, b in iv):
                     hit = True
         v['trip'] = hit
+    if with_spans:
+        return days, warn, dict(spans)
     return days, warn
 
 
