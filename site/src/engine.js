@@ -1804,6 +1804,7 @@ function amedasView(a) {
 /* ---------------- 链接、规则说明 ---------------- */
 const LINKS = [
   { group: '道路信息', intro: '本页不显示封路实况，只放链接：NEXCO 东日本的ドラぷら和官网、国土交通省的道路信息提供系统，使用条款都写明未经同意不得转载到其他网站；ドラとら的高速交通信息来自 JARTIC，JARTIC 要先同意使用条款，也限制转载。封路请点下面的链接看。', items: [
+    { name: 'iHighway 高速交通信息图·北海道（NEXCO 西日本运营）', url: 'https://ihighway.jp/pcsite/map/?area=area01', note: '一打开就是北海道各条高速的地图，直接标出封闭、链条管制、冬季轮胎管制、事故和风力预测，还有道路摄像头；不用登录，也不用先同意条款；信息来自 JARTIC' },
     { name: 'NEXCO 东日本的高速公路交通信息网站“ドラとら”（DriveTraffic）', url: 'https://www.drivetraffic.jp/', note: '道央道、札樽道的封闭、限速和摄像头；深夜维护打不开时看 JARTIC' },
     { name: 'NEXCO 东日本北海道支社的 X 账号（@e_nexco_kita）', url: 'https://x.com/e_nexco_kita', note: '暴风雪来之前常会预告可能封闭的路段和时间' },
     { name: '国土交通省 道路信息提供系统', url: 'https://www.road-info-prvs.mlit.go.jp/roadinfo', note: '国道的封闭和路况' },
