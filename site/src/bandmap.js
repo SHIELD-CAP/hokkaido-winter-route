@@ -102,10 +102,12 @@
       q('.bm-svg').innerHTML = s;
     }
 
+    // 一律按东京时间写：data.time 是东京时间，先加 9 小时再用 getUTC*，不受访客浏览器所在时区影响
+    // （2026-11-28 发现：原来用 getHours()，在 UTC 时区的浏览器里时刻会早 9 小时，在中国早 1 小时）
     function label(k, short) {
-      const t = new Date(data.time[k] + ':00+09:00'), p = new Date(t.getTime() - 3600e3);
-      const hh = d => String(d.getHours()).padStart(2, '0');
-      return short ? `${t.getMonth() + 1}/${t.getDate()} ${hh(t)} 时` : `${p.getMonth() + 1}/${p.getDate()} ${hh(p)}–${hh(t)} 时`;
+      const t = new Date(new Date(data.time[k] + ':00+09:00').getTime() + 9 * 3600e3), p = new Date(t.getTime() - 3600e3);
+      const hh = d => String(d.getUTCHours()).padStart(2, '0');
+      return short ? `${t.getUTCMonth() + 1}/${t.getUTCDate()} ${hh(t)} 时` : `${p.getUTCMonth() + 1}/${p.getUTCDate()} ${hh(p)}–${hh(t)} 时`;
     }
 
     function cellColor(p, T) {
