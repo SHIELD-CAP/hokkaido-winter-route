@@ -1210,7 +1210,7 @@ function evalWindow(ctx, route, seg, ds, offset) {
         if (v3 == null) continue;
         const v6 = t - 6 * H >= s0 ? bandSum(s, t - 6 * H, t, 6) : null;
         const sc = Math.max(v3 / BAND_RED.h3, v6 != null ? v6 / BAND_RED.h6 : 0);
-        if (!top || sc > top.sc) top = { sc, v3, v6, pn: PT[pid].name, hh: t <= msAt(ds, 0) ? '前一天 ' + (jp(t).h || 24) : hourLabel(t, ds) };
+        if (!top || sc > top.sc) top = { sc, v3, v6, pn: PT[pid].name, pid, t, hh: t <= msAt(ds, 0) ? '前一天 ' + (jp(t).h || 24) : hourLabel(t, ds) };
       }
     }
     if (top) {
@@ -1220,6 +1220,12 @@ function evalWindow(ctx, route, seg, ds, offset) {
       const cmR = v => `约 ${Math.round(v)}–${Math.round(v * 1.6)} cm 雪`;   // 札幌、岩见泽实测大雪时每毫米降水积 1.0–1.6 cm
       const amt = `MSM 算出${top.pn}附近格点到 ${top.hh} 时为止 3 小时降水 ${f1(top.v3)} mm（${cmR(top.v3)}）${top.v6 != null ? `、6 小时 ${f1(top.v6)} mm（${cmR(top.v6)}）` : ''}（只算 0.5 ℃ 以下；取数时间窗是${winTxt}）`;
       const src = 'Open-Meteo 提供的模式格点数值（MSM）', short = `${top.pn}附近格点 3 小时降水 ${f1(top.v3)} mm（雪带）`;
+      if (org) {   // 2026-11-28：依据表原来只列本时段的几个小时，雪带算到的时刻常在时段之前，表里全是 0；这里把算到的那 6 小时（或 3 小时）单列在最前面
+        const s = ctx.om.msm.series[top.pid], a = top.t - (top.v6 != null ? 6 : 3) * H;
+        const hl = t => (t <= msAt(ds, 0) ? '前一天 ' + (jp(t).h || 24) : pad(hourLabel(t, ds)));
+        const rows = []; for (let i = 0; i < s.t.length; i++) if (s.t[i] > a && s.t[i] <= top.t) rows.push({ h: hl(s.t[i]), w: s.W[i], g: s.G[i], sn: s.S[i], rn: s.R[i], t: s.T[i] });
+        if (rows.length) raw.unshift({ pid: 'band', model: 'MSM（日本气象厅中尺度模式）', point: `${top.pn}附近的陆地格点：雪带算到的那几个小时（北纬 ${f2(s.lat)}°，东经 ${f2(s.lon)}°）`, rows });
+      }
       if (red && bandSig.size) add(mkReason('red', 'R8', `雪带：${amt}，达到 3 小时 7 mm 或 6 小时 10 mm；气象厅这时也有雪的信号（${[...bandSig].join('、')}）。这种宽二三十公里的雪带，风不大也会让道央道封路（2026-11-25 江别东 IC—美呗 IC 那次就是）。`, src, short, { dk: 'model|band', model: true, rt: '大雪' }));
       else if (red) add(mkReason('orange', 'O9', `雪带：${amt}，达到红线，但气象厅这时没有雪的信号，所以判橙。`, src, short + '，气象厅没有雪的信号', { dk: 'model|band', model: true, rt: '大雪' }));
       else if (org && !seg.bandNoOrg) add(mkReason('orange', 'O9', `雪带预警：${amt}，达到 3 小时 4.5 mm 或 6 小时 6 mm。窄雪带前一天能报出“这一带可能有”，报不准落在哪几公里，当天早上要看实况。`, src, short, { dk: 'model|band', model: true, rt: '大雪' }));
@@ -1454,14 +1460,15 @@ function headlineOf(reasons, level, where, missing) {
   if (lack.length || oldTxt) h += `另外${[lack.length ? '缺少' + lack.join('、') : '', oldTxt].filter(Boolean).join('，')}，实际等级可能更高。`;
   return h;
 }
+// 2026-11-28 改为按路段分写（原来把两段的时段并在一起写“两段路都……”，会让人以为两段整段时间都是这个等级）
 function cellsWhere(route, cells, level) {
-  const colsHit = route.cols.map((c, ci) => cells.some(row => row[ci].level === level && !row[ci]._past));
-  const rowsHit = route.rows.filter((r, ri) => cells[ri].some(c => c.level === level && !c._past)).map(r => r.name);
-  const ranges = []; let start = null;
-  route.cols.forEach(([a, b], ci) => { if (colsHit[ci]) { if (start == null) start = a; if (ci === route.cols.length - 1 || !colsHit[ci + 1]) { ranges.push(`${pad(start)}–${pad(b)}`); start = null; } } });
-  const word = LV_WORD[level] || '';
-  const both = rowsHit.length === route.rows.length;
-  return `${ranges.join('、')} 时，${both ? '两段路都' + word : rowsHit[0] + word}`;
+  const parts = route.rows.map((r, ri) => {
+    const hit = route.cols.map((c, ci) => cells[ri][ci].level === level && !cells[ri][ci]._past);
+    const ranges = []; let start = null;
+    route.cols.forEach(([a, b], ci) => { if (hit[ci]) { if (start == null) start = a; if (ci === route.cols.length - 1 || !hit[ci + 1]) { ranges.push(`${pad(start)}–${pad(b)}`); start = null; } } });
+    return ranges.length ? `${r.name} ${ranges.join('、')} 时` : null;
+  }).filter(Boolean);
+  return `${parts.join('，')}${LV_WORD[level] || ''}`;
 }
 function dayJma(ctx, route, ds) {
   const out = { forecast: [], early: [], earlyNote: '', timeline: [] };
@@ -1707,11 +1714,14 @@ function buildView(raw, now) {
   }
   Object.entries(redNow).forEach(([k, o]) => { const [code, off] = k.split('|'); banners.push({ level: 'red', text: `气象厅 ${fmtMD(o.rd)} 发布：${o.ms.join('、')} ${WARN_NAME[code] || '气象厅代码 ' + code + ' 的警报'}，目前有效（本页 ${fmtHM(fetchedAt)} 取得，之后可能已有变化）。`, url: `https://www.jma.go.jp/bosai/warning/#area_type=offices&area_code=${off}` }); });
   // 气象解说信息：每份（同一事件只取最新一份）一条，正文要点附参考译文；所说时段都已结束的不再提示
+  // 2026-11-28：只有讲雪、吹雪、暴风、雪崩的才放页首横幅（这类才可能影响等级）；其他的（雷击、突发强风、冰雹等）折成一行放在结论卡下面
+  const bulletinsFolded = [];
   ctx.bulletins.filter(b => !b.expired).slice(0, 3).forEach(b => {
     const head = `气象厅《${zhTitle(b.title)}》第 ${b.serial} 号（${fmtMD(b.rd)} 发布）`;
-    const text = b.body ? `${head}要点：${b.body.zh}${b.body.parsedAll ? '' : '（有一部分没能自动翻译）'}中文是本页的参考译文，以原文为准。`
+    const text = b.body ? `${head}要点：${b.body.zh}${b.body.parsedAll ? '' : '（有一部分没能自动翻译）'}`
       : `${head}的正文${b.bodyErr === '正在取' ? '正在取' : '没取到（' + b.bodyErr + '）'}，请看原文。`;
-    banners.push({ level: 'orange', tag: '气象解说', text, url: b.url });
+    if (/雪|ふぶき|吹雪|暴風|なだれ|着氷/.test(b.title || '')) banners.push({ level: 'orange', tag: '气象解说', text: text + (b.body ? '中文是本页的参考译文，以原文为准。' : ''), url: b.url });
+    else bulletinsFolded.push({ title: zhTitle(b.title), text, url: b.url });
   });
   const errNames = [...new Set(sources.filter(s => s.status === 'error').map(s => s.name.replace(/（.*$/, '')))];
   if (errNames.length) banners.push({ level: 'info', text: `有 ${errNames.length} 项数据没取到（${errNames.join('、')}）。用得到这些数据的日子不会显示绿色。可以点“刷新”重试。` });
@@ -1728,7 +1738,7 @@ function buildView(raw, now) {
     meta: { title: '北海道冬季路线出行参考', freshness: fresh, rulesVersion: RULES_VERSION, loading: false, refreshing: !!pending, generatedAt: now },
     disclaimerShort: '个人整理的出行参考，不是天气预报或警报。本页只看天气，看不到封路和 JR 停运的实况；一切以官方发布的信息为准。',
     disclaimerLong: '本页不做天气预报，也不发布警报。页面上的天气内容有两类：一是气象厅已经发布的预报、警报、注意报、早期注意信息、危险度时间序列和气象解说信息，中文是参考译文；二是数值预报模式在附近陆地格点上的计算结果（经 Open-Meteo 取得；没有按海拔修正；降雪量来自模式，或由 Open-Meteo 用降水量和气温换算；第 4 天以后大部分时刻是它插值出来的），可能与实际相差很大。等级是按“规则说明”里公开的固定门槛对这些数据做的归类：绿色只说明这些数据没有超过门槛，不代表道路畅通，也不代表可以放心出行。本页看不到道路封闭、封路预告和 JR 停运、减班的信息：道路是否封闭、限速，以道路管理者（NEXCO 东日本、北海道开发局等）和警方的实时信息为准；铁路以 JR 北海道的发布为准。依据本页做出的出行决定，请自行判断并承担后果。',
-    banners,
+    banners, bulletinsFolded,
     routes,
     amedas: raw.amedas ? amedasView(raw.amedas) : { status: amedasLoading ? 'loading' : 'idle', time: '', rows: [] },
     links: LINKS,
@@ -1801,9 +1811,10 @@ const LINKS = [
     { name: '“北の道ナビ”（北海道道路信息综合导航，寒地土木研究所）', url: 'https://northern-road.ceri.go.jp/navi/', note: '冬季封闭路段、山口路况、道路摄像头汇总' },
     { name: 'JARTIC（日本道路交通信息中心）', url: 'https://www.jartic.or.jp/', note: '全国实时封路与限速；第一次打开要先同意使用条款' }
   ] },
-  { group: '航班会不会停飞', intro: '本页不显示航班会不会停飞：日本航空、全日空官网的使用条款不许转载网站内容，链接也要先向它们申请，而且原则上只许连首页。下面放的是两家在 X（原推特）上的官方运航信息账号，发布的是官网“運航の見通し”（运航预判）的内容：哪些机场可能因天气延误、取消、返航或备降。', items: [
-    { name: '日本航空的运航信息 X 账号（@JAL_flight_info）', url: 'https://x.com/JAL_flight_info', note: '看有没有点名“札幌（新千歳）”；只管日本航空集团自己运营的航班，不含其他公司运营的代码共享航班' },
-    { name: '全日空的运航预判 X 账号（@ANA_flight_info）', url: 'https://x.com/ANA_flight_info', note: '看有没有点名“札幌（新千歳）”；不含 AIRDO 等其他公司运营的代码共享航班' }
+  { group: '航班运行提示', intro: '本页不显示航班会不会停飞：新千岁机场、日本航空、全日空的网站使用条款都不许转载其内容。请点下面的链接，直接看它们发布的信息。', items: [
+    { name: '新千岁机场 今日航班（北海道エアポート）', url: 'https://www.hokkaido-airports.com/ja/new-chitose/airport/fis/', note: '各航空公司当天的出发、到达和取消' },
+    { name: '日本航空 天气对航班的影响预判（日文：運航の見通し）', url: 'https://www.jal.co.jp/jp/ja/other/weather_info_dom/', note: '列出因天气可能延误、取消、返航或备降的机场，看有没有“札幌（新千歳）”；只管日本航空集团自己运营的航班' },
+    { name: '全日空 国内线运行情况（日文：運航状況のご案内）', url: 'https://www.ana.co.jp/fs/dom/jp/', note: '页面里有同样的天气影响预判（運航の見通し）；不含 AIRDO 等其他公司运营的代码共享航班' }
   ] },
   { group: '气象厅发布的内容', items: [
     { name: '警报、注意报（石狩、空知、后志预报区）', url: 'https://www.jma.go.jp/bosai/warning/#area_type=offices&area_code=016000', note: '页面里有危险度时间序列' },
@@ -1821,7 +1832,7 @@ const LINKS = [
 ];
 const RULES_TEXT = [
   '等级有五种。⬛ 交通瘫痪：基本动不了，大面积封路、停运；只用于札幌、小樽、千岁（新千岁机场）一线，即机场线两段和一日游的去程、回程高速。🔴 不宜出行：这段路这个时段可能封高速，或让札幌市区大面积堵车。🟠 要注意：能走，但会明显变慢，要有预案。🟢 没有触发任何规则：只说明下面这些数据没有超过门槛，不等于安全。⚪ 无法判定：缺数据或数据太旧，所以不给绿色。橙色以上的每条依据都标明风险类型：吹雪（视线差）、大雪（雪深、除雪跟不上）、结冰（雨后或融雪后降温）、其他（雪崩、着雪、封闭解除滞后等）；只有风的标“只有风”。',
-  '本页只看天气。高速、国道有没有封闭，有没有预防性封路或夜间排雪封闭的预告，JR 有没有减班、末班提前或停运，本页都看不到；这些请看页面下方“道路信息”“铁路”里的官方入口；航班会不会停飞看“航班会不会停飞”里两家航空公司的运航信息账号。',
+  '本页只看天气。高速、国道有没有封闭，有没有预防性封路或夜间排雪封闭的预告，JR 有没有减班、末班提前或停运，本页都看不到；这些请看页面下方“道路信息”“铁路”里的官方入口；航班会不会停飞看“航班运行提示”里的机场和航空公司官网。',
   '每条路线按固定时段判定。一日游分四段：去程高速 09–11 时、旭川—美瑛—白金 11–17 时、回程山路 17–19 时、回程高速 19–20 时。机场线分札樽道段和道央道段，各按 06–09、09–12、12–15、15–18、18–21、21–24 时判定，00–06 时不判定。当天的等级取各段（各格）里最严重的一个。',
   '总的原则：北海道冬天下雪是常态，不因为下雪就判不宜出行。判红、判黑必须有本段、本时段的证据；整片地区的信号（早期注意信息、不分时段的预报文字）单独出现时最多判橙。只有风、没有雪不计等级，写进提醒（平均风 18 m/s、没有雪也不判红）；只有预报写陆上风“非常に強く”（平均 20 m/s 以上）或有暴风警报时判橙，类型写“只有风”。第 4 天起最高判橙（早期注意信息“高”加模式佐证的例外见下），写“可能升级”。',
   '下面说到的词：早期注意信息（日文：早期注意情報）是气象厅对今后 5 天内出现警报级天气的可能性给出的“高”“中”；注意报（日文：注意報）是比警报低一级的提醒；危险度时间序列是气象厅按 3 小时一格、到市町给出的风、雪预报值和达到注意报、警报标准的时段，是预报员订正过的数；地域时序预报（日文：地域時系列予報）是气象厅按细分地区、3 小时一格给出的天气和风速范围；气象解说信息（日文：気象解説情報）是气象台在大雪、暴风雪过程前后发布的说明；MSM 是日本气象厅的中尺度模式（约 5 公里一格，算到约 78 小时后）；ECMWF 是欧洲中期天气预报中心，IFS 是它的全球模式；集合预报是同一个模式用略有不同的初始条件算 51 遍。风力等级按蒲福风级：5 级 8.0–10.7 m/s，6 级 10.8–13.8 m/s，7 级 13.9–17.1 m/s。',

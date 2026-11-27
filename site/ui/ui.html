@@ -501,11 +501,22 @@ function renderRoutes(view){
   if (!days.length) return out + `<section class="card"><p class="muted">这条路线暂时没有逐日结果。</p></section></div>`;
   const { day, index } = pickDay(route, days);
   const dk = dayKey(day, index);
-  out += renderStrip(days, index) + renderDayCard(view, day || {});
+  out += renderStrip(days, index) + renderDayCard(view, day || {}) + renderFolded(view);
   out += route.kind === 'grid' ? renderGrid(route, day || {}, dk) : renderTimeline(route, day || {}, dk);
   out += `<div id="bandmap-slot" data-route="${esc(route.id)}"></div>`;   // 雪带地图放在气象厅发布的内容上方
   out += renderJma(route, day || {}, dk);
   return out + `</div>`;
+}
+
+/* 不影响等级的气象解说（雷击、突发强风等）：折成一行放在结论卡下面（2026-11-28） */
+function renderFolded(view){
+  const list = arr(view.bulletinsFolded).filter(b => b && b.text);
+  if (!list.length) return '';
+  const topics = [...new Set(list.map(b => ((b.title || '').match(/（([^）]+)）\s*$/) || [])[1]).filter(Boolean))].join('；');
+  const k = 'folded-bulletins';
+  return `<details class="card" data-k="${k}" ${detOpen(k, false) ? 'open' : ''}><summary>气象厅另有 ${list.length} 份气象解说信息<span class="muted">${esc(topics ? topics + '，' : '')}不影响等级</span></summary><div class="dbody">` +
+    list.map(b => { const u = safeUrl(b.url); return `<p class="small">${esc(b.text)}${u ? ` <a href="${esc(u)}" target="_blank" rel="noopener">查看原文</a>` : ''}</p>`; }).join('') +
+    `<p class="muted small">中文是本页的参考译文，以原文为准。</p></div></details>`;
 }
 
 /* ---------- 沿线实测 ---------- */
