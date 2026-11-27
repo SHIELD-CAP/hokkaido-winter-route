@@ -5,6 +5,8 @@
 //   2b. 道央道两侧 20 公里内的 MSM 网格（约 5 公里一格），写进 data/latest/msm_grid.json，供网站的雪带地图和日报的“两侧雪带”提醒用；
 //       机场线两侧 20 公里的同样网格写进 data/latest/msm_grid_b.json，只给网站的机场线雪带地图用；
 //   3. 气象厅的警报注意报、危险度时间序列、天气预报、早期注意信息、地域时序预报，内容有变化时存档。气象厅网站不保留这些产品的历史版本，不自己存就没有回测材料。
+//   3b. 气象解说情报（気象解説情報，札幌管区気象台、旭川地方気象台发的北海道、石狩・空知・後志、上川・留萌三种）每份正文存一次；
+//       新千歳空港的机场气象解说情报（飛行場気象解説情報，图片，定时版 ADJH01、临时版 ADJH02）内容有变化时存一份。用途同上：以后回测。
 // 每次每个来源取没取到，都记进 data/fetch_log.csv。
 // 只用 Node 20 自带的功能，不装任何依赖。
 
@@ -70,6 +72,14 @@ async function get(url, tries = 3) {
     await new Promise(res => setTimeout(res, 20000 * (i + 1)));
   }
   return last;
+}
+
+async function getBin(url) {
+  try {
+    const r = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(45000) });
+    const buf = Buffer.from(await r.arrayBuffer());
+    return { ok: r.ok, status: r.status, buf, text: r.ok ? '' : buf.toString('utf8', 0, 200) };
+  } catch (e) { return { ok: false, status: 0, buf: null, text: String(e) }; }
 }
 
 function log(source, res, note = '') {
@@ -218,6 +228,49 @@ async function jma() {
   return { ok, changed };
 }
 
+// 3b. 气象解说情报正文、机场气象解说情报图片
+const INFO_OFFICES = ['札幌管区気象台', '旭川地方気象台'];
+const INFO_TITLES = ['北海道地方気象解説情報', '石狩・空知・後志地方気象解説情報', '上川・留萌地方気象解説情報'];
+const AERO_JOBS = [
+  ['aero_ADJH01_RJCC', 'https://www.data.jma.go.jp/airinfo/data/pict/comment/ADJH01_RJCC.png'],   // 定时版
+  ['aero_ADJH02_RJCC', 'https://www.data.jma.go.jp/airinfo/data/pict/comment/ADJH02_RJCC.png']    // 临时版，没发时 404
+];
+async function jmaExtra() {
+  const seenFile = 'data/latest/jma_extra_seen.json';
+  let seen = { info: [], aero: {} };
+  if (existsSync(path.join(ROOT, seenFile))) { try { seen = JSON.parse(await readFile(path.join(ROOT, seenFile), 'utf8')); } catch { /* 重新开始 */ } }
+  seen.info = seen.info || []; seen.aero = seen.aero || {};
+  let info = 0, aero = 0;
+  const list = await get(JMA + 'information/data/r8/information.json', 2);
+  if (!list.ok) log('jma:info_list', list);
+  else {
+    let items = [];
+    try { items = JSON.parse(list.text); } catch { items = []; }
+    for (const it of items) {
+      if (!INFO_OFFICES.includes(it.editorialOffice)) continue;
+      if (!INFO_TITLES.some(t => (it.headTitle || '').startsWith(t))) continue;
+      if (!it.jsonName || seen.info.includes(it.jsonName)) continue;
+      const res = await get(JMA + 'information/data/r8/denbun/' + it.jsonName + '.json', 2);
+      if (!res.ok) { log('jma:info', res, it.jsonName); continue; }
+      await write(path.join(dayDir, 'jma', `info_${it.jsonName}.json.gz`), gzipSync(res.text));
+      seen.info.push(it.jsonName); info++;
+      log('jma:info', res, `${it.headTitle} 第${it.serial}号 已存档`);
+    }
+    seen.info = seen.info.slice(-300);
+  }
+  for (const [key, url] of AERO_JOBS) {
+    const res = await getBin(url);
+    if (!res.ok) { if (!(key.includes('ADJH02') && res.status === 404)) log('jma:' + key, res); continue; }
+    const h = createHash('sha256').update(res.buf).digest('hex').slice(0, 16);
+    if (seen.aero[key] === h) continue;
+    seen.aero[key] = h; aero++;
+    await write(path.join(dayDir, 'jma', `${key}_${stamp}.png`), res.buf);
+    log('jma:' + key, { ok: true, status: res.status, text: { length: res.buf.length } }, '有变化，已存档');
+  }
+  await write(seenFile, JSON.stringify(seen, null, 1));
+  return { info, aero };
+}
+
 const msmInit = await openMeteo('msm', 'jma_msm', 4, 2, true);
 const ifsInit = await openMeteo('ifs', 'ecmwf_ifs', 8, 2, false);
 const gridOk = await msmGrid('msm_grid', gridPoints(),
@@ -227,6 +280,7 @@ const gridBOk = await msmGrid('msm_grid_b', gridPointsB(),
   '机场线（小樽—钱函—札幌—北广岛—惠庭—新千岁机场）两侧 20 公里内的 MSM 网格，格点与 msm_grid.json 对齐。points 每项是 [纬度, 经度, 离路线公里数, 在路线的哪个方向（N、NE、E、SE、S、SW、W、NW；离路线 2 公里以内为空）]；' +
   'temp、prec、wind 与 points 同序，每行是逐时的 气温×10（°C）、降水×10（mm，该时刻之前一小时的合计）和 10 m 平均风速×10（m/s）；time 是东京时间。', true);
 const j = await jma();
+const jx = await jmaExtra();
 
 const status = {
   fetched_utc: iso, fetched_jst: jst,
@@ -235,6 +289,7 @@ const status = {
   msm_grid: { ok: gridOk },
   msm_grid_b: { ok: gridBOk },
   jma: { ok: j.ok, of: JMA_JOBS.length, archived_changed: j.changed },
+  jma_extra: { info_archived: jx.info, aero_archived: jx.aero },
   note: 'msm.json / ifs.json 取不到时保留上一次成功的版本；判断新旧请看 msm.json 里的 fetched_utc 和 init_utc。'
 };
 // status 只在至少一个来源成功时更新的字段，失败的来源在 fetch_log.csv 里有记录
