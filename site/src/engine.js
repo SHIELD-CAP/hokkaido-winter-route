@@ -1813,7 +1813,7 @@ const LINKS = [
     { name: 'JR 北海道 列车运行信息', url: 'https://www3.jrhokkaido.co.jp/webunkou/', note: '机场快线“快速エアポート”停运时看这里；风雪前一天傍晚常会预告减班、末班提前' },
     { name: '北海道新闻 JR 停运一览', url: 'https://www.hokkaido-np.co.jp/jr_unkyu_info/', note: '分“今天”“明天”列出快速エアポート和特急的停运' },
     { name: '新千岁机场 今日航班', url: 'https://www.hokkaido-airports.com/ja/new-chitose/airport/fis/', note: '出发、到达航班的状态' },
-    { name: '日本航空“運航の見通し”（航班运行预判）', url: 'https://www.jal.co.jp/jp/ja/other/weather_info_dom/', note: '天气可能影响航班时的提前提示' }
+    { name: '新千岁机场 机场气象解说情报（日文：飛行場気象解説情報）', url: 'https://www.data.jma.go.jp/airinfo/data/awfo_comment.html?RJCC#contents_area2', note: '气象厅给航空公司和管制的机场天气预报，管约 30 小时；标黄、标红的时段是风、视程、降雪对起降不利的时候。各家航空公司都看它，日本航空、全日空等自家的“运航提示”只管自家航班' }
   ] }
 ];
 const RULES_TEXT = [
