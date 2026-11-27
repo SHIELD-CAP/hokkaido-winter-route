@@ -38,7 +38,15 @@ jobs:
             exit 0
           fi
           git commit -q -m "iHighway 取数 $(TZ=Asia/Tokyo date +%m-%dT%H:%M)"
+          ok=0
           for i in 1 2 3 4 5; do
-            git pull -q --rebase && git push -q && break
+            if git pull -q --rebase && git push -q; then ok=1; break; fi
             sleep $((RANDOM % 15 + 5))
           done
+          if [ "$ok" != 1 ]; then echo "推送 5 次都失败"; exit 1; fi
+      - name: 连续取数失败时报错
+        run: |
+          if [ -f /tmp/ihighway_alert ]; then
+            echo "iHighway 已连续 6 次取不到数据：$(cat /tmp/ihighway_alert)"
+            exit 1
+          fi

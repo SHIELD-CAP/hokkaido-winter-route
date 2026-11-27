@@ -7,7 +7,7 @@
 (function (root) {
 'use strict';
 
-const RULES_VERSION = 'v6 · 2026-11-26 修订';
+const RULES_VERSION = 'v6 · 2026-11-28 修订';
 const JMA = 'https://www.jma.go.jp/bosai/';
 const OM = 'https://api.open-meteo.com/v1/forecast';
 const OME = 'https://ensemble-api.open-meteo.com/v1/ensemble';
@@ -1220,7 +1220,7 @@ function evalWindow(ctx, route, seg, ds, offset) {
       const cmR = v => `约 ${Math.round(v)}–${Math.round(v * 1.6)} cm 雪`;   // 札幌、岩见泽实测大雪时每毫米降水积 1.0–1.6 cm
       const amt = `MSM 算出${top.pn}附近格点到 ${top.hh} 时为止 3 小时降水 ${f1(top.v3)} mm（${cmR(top.v3)}）${top.v6 != null ? `、6 小时 ${f1(top.v6)} mm（${cmR(top.v6)}）` : ''}（只算 0.5 ℃ 以下；取数时间窗是${winTxt}）`;
       const src = 'Open-Meteo 提供的模式格点数值（MSM）', short = `${top.pn}附近格点 3 小时降水 ${f1(top.v3)} mm（雪带）`;
-      if (org) {   // 2026-11-28：依据表原来只列本时段的几个小时，雪带算到的时刻常在时段之前，表里全是 0；这里把算到的那 6 小时（或 3 小时）单列在最前面
+      if (red || (org && !seg.bandNoOrg)) {   // 2026-11-28：出了雪带依据才加表（机场线道央道段只到预警线时不出依据，见下）。依据表原来只列本时段的几个小时，雪带算到的时刻常在时段之前，表里全是 0；这里把算到的那 6 小时（或 3 小时）单列在最前面
         const s = ctx.om.msm.series[top.pid], a = top.t - (top.v6 != null ? 6 : 3) * H;
         const hl = t => (t <= msAt(ds, 0) ? '前一天 ' + (jp(t).h || 24) : pad(hourLabel(t, ds)));
         const rows = []; for (let i = 0; i < s.t.length; i++) if (s.t[i] > a && s.t[i] <= top.t) rows.push({ h: hl(s.t[i]), w: s.W[i], g: s.G[i], sn: s.S[i], rn: s.R[i], t: s.T[i] });
@@ -1715,14 +1715,19 @@ function buildView(raw, now) {
   Object.entries(redNow).forEach(([k, o]) => { const [code, off] = k.split('|'); banners.push({ level: 'red', text: `气象厅 ${fmtMD(o.rd)} 发布：${o.ms.join('、')} ${WARN_NAME[code] || '气象厅代码 ' + code + ' 的警报'}，目前有效（本页 ${fmtHM(fetchedAt)} 取得，之后可能已有变化）。`, url: `https://www.jma.go.jp/bosai/warning/#area_type=offices&area_code=${off}` }); });
   // 气象解说信息：每份（同一事件只取最新一份）一条，正文要点附参考译文；所说时段都已结束的不再提示
   // 2026-11-28：只有讲雪、吹雪、暴风、雪崩的才放页首横幅（这类才可能影响等级）；其他的（雷击、突发强风、冰雹等）折成一行放在结论卡下面
+  // 2026-11-28 第二轮审阅后改：先分类再截断（原来先取前 3 份再分类，讲雪的可能被截掉）；除了标题，也看正文拆出的现象；
+  // 正文没取到或有句子没拆开的，看不出讲不讲雪，也留在页首——折叠行写着“不影响等级”，这句话必须是真的
   const bulletinsFolded = [];
-  ctx.bulletins.filter(b => !b.expired).slice(0, 3).forEach(b => {
+  const bulSnowy = b => /雪|ふぶき|吹雪|暴風|なだれ|着氷/.test(b.title || '') || !b.body
+    || (b.body.sentences || []).some(sn => !sn.ok || (sn.groups || []).some(g => (g.hz || []).some(h => h.kind === 'snow' || h.kind === 'traffic' || h.kind === 'ava')));
+  const bulText = b => {
     const head = `气象厅《${zhTitle(b.title)}》第 ${b.serial} 号（${fmtMD(b.rd)} 发布）`;
-    const text = b.body ? `${head}要点：${b.body.zh}${b.body.parsedAll ? '' : '（有一部分没能自动翻译）'}`
+    return b.body ? `${head}要点：${b.body.zh}${b.body.parsedAll ? '' : '（有一部分没能自动翻译）'}`
       : `${head}的正文${b.bodyErr === '正在取' ? '正在取' : '没取到（' + b.bodyErr + '）'}，请看原文。`;
-    if (/雪|ふぶき|吹雪|暴風|なだれ|着氷/.test(b.title || '')) banners.push({ level: 'orange', tag: '气象解说', text: text + (b.body ? '中文是本页的参考译文，以原文为准。' : ''), url: b.url });
-    else bulletinsFolded.push({ title: zhTitle(b.title), text, url: b.url });
-  });
+  };
+  const liveBul = ctx.bulletins.filter(b => !b.expired);
+  liveBul.filter(bulSnowy).slice(0, 3).forEach(b => banners.push({ level: 'orange', tag: '气象解说', text: bulText(b) + (b.body ? '中文是本页的参考译文，以原文为准。' : ''), url: b.url }));
+  liveBul.filter(b => !bulSnowy(b)).forEach(b => bulletinsFolded.push({ title: zhTitle(b.title), text: bulText(b), url: b.url }));
   const errNames = [...new Set(sources.filter(s => s.status === 'error').map(s => s.name.replace(/（.*$/, '')))];
   if (errNames.length) banners.push({ level: 'info', text: `有 ${errNames.length} 项数据没取到（${errNames.join('、')}）。用得到这些数据的日子不会显示绿色。可以点“刷新”重试。` });
   const staleNames = [...new Set(sources.filter(s => s.status === 'stale').map(s => s.name.replace(/（.*$/, '')))];
@@ -1803,14 +1808,14 @@ function amedasView(a) {
 
 /* ---------------- 链接、规则说明 ---------------- */
 const LINKS = [
-  { group: '道路信息', intro: '本页不显示封路实况，只放链接：NEXCO 东日本的ドラぷら和官网、国土交通省的道路信息提供系统，使用条款都写明未经同意不得转载到其他网站；ドラとら的高速交通信息来自 JARTIC，JARTIC 要先同意使用条款，也限制转载。封路请点下面的链接看。', items: [
-    { name: 'iHighway 高速交通信息图·北海道（NEXCO 西日本运营）', url: 'https://ihighway.jp/pcsite/map/?area=area01', note: '一打开就是北海道各条高速的地图，直接标出封闭、链条管制、冬季轮胎管制、事故和风力预测，还有道路摄像头；不用登录，也不用先同意条款；信息来自 JARTIC' },
-    { name: 'NEXCO 东日本的高速公路交通信息网站“ドラとら”（DriveTraffic）', url: 'https://www.drivetraffic.jp/', note: '道央道、札樽道的封闭、限速和摄像头；深夜维护打不开时看 JARTIC' },
+  { group: '道路信息', intro: '本页不显示封路实况，只放链接：JARTIC、iHighway、NEXCO 东日本和国土交通省的网站，使用条款都不许把它们的内容转载到别的网站。封没封路，请点下面的链接直接看。高速和国道都要看，开第一个 JARTIC；只看高速，开第二个 iHighway，不用先同意条款。', items: [
+    { name: 'JARTIC（日本道路交通信息中心）', url: 'https://www.jartic.or.jp/', note: '高速、国道和都道府县道的封闭、管制、拥堵都在这里；iHighway 和ドラとら的高速信息也来自它。第一次打开要先同意它的使用条款（日文），同意后才显示' },
+    { name: 'iHighway 高速交通信息图·北海道（NEXCO 西日本集团运营）', url: 'https://ihighway.jp/pcsite/map/?area=area01', note: '只看高速时最快：一打开就是北海道各条高速的地图，标出封闭、防滑链管制、冬季轮胎管制和事故，还有道路摄像头；不用登录，也不用先同意条款。不含国道；信息来自 JARTIC' },
+    { name: 'NEXCO 东日本的高速公路交通信息网站“ドラとら”（DriveTraffic）', url: 'https://www.drivetraffic.jp/', note: '道央道、札樽道的封闭、限速和摄像头；深夜维护打不开时看上面两个' },
     { name: 'NEXCO 东日本北海道支社的 X 账号（@e_nexco_kita）', url: 'https://x.com/e_nexco_kita', note: '暴风雪来之前常会预告可能封闭的路段和时间' },
     { name: '国土交通省 道路信息提供系统', url: 'https://www.road-info-prvs.mlit.go.jp/roadinfo', note: '国道的封闭和路况' },
     { name: '北海道开发局的道路信息 X 账号（@hkd_mlit_road）', url: 'https://x.com/hkd_mlit_road', note: '国道封闭的即时通知' },
-    { name: '“北の道ナビ”（北海道道路信息综合导航，寒地土木研究所）', url: 'https://northern-road.ceri.go.jp/navi/', note: '冬季封闭路段、山口路况、道路摄像头汇总' },
-    { name: 'JARTIC（日本道路交通信息中心）', url: 'https://www.jartic.or.jp/', note: '全国实时封路与限速；第一次打开要先同意使用条款' }
+    { name: '“北の道ナビ”（北海道道路信息综合导航，寒地土木研究所）', url: 'https://northern-road.ceri.go.jp/navi/', note: '冬季封闭路段、山口路况、道路摄像头汇总' }
   ] },
   { group: '航班运行提示', intro: '本页不显示航班会不会停飞：新千岁机场、日本航空、全日空的网站使用条款都不许转载其内容。请点下面的链接，直接看它们发布的信息。', items: [
     { name: '新千岁机场 今日航班（北海道エアポート）', url: 'https://www.hokkaido-airports.com/ja/new-chitose/airport/fis/', note: '各航空公司当天的出发、到达和取消' },
