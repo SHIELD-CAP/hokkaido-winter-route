@@ -1,6 +1,6 @@
 {
- "fetched_utc": "2026-11-27T20:39:01.787Z",
- "fetched_jst": "2026-11-28 05:39 JST",
+ "fetched_utc": "2026-11-27T22:36:33.106Z",
+ "fetched_jst": "2026-11-28 07:36 JST",
  "msm": {
   "ok": true,
   "init_utc": "2026-11-27T15:00:00.000Z"
@@ -18,11 +18,11 @@
  "jma": {
   "ok": 12,
   "of": 12,
-  "archived_changed": 8
+  "archived_changed": 2
  },
  "jma_extra": {
   "info_archived": 0,
-  "aero_archived": 1
+  "aero_archived": 0
  },
  "note": "msm.json / ifs.json 取不到时保留上一次成功的版本；判断新旧请看 msm.json 里的 fetched_utc 和 init_utc。"
 }
