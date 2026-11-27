@@ -1,0 +1,44 @@
+name: 记录高速封闭（iHighway，道央道、札樽道）
+
+# 每 30 分钟取一次 iHighway 的北海道数据，记下道央道、札樽道的通行止め、ランプ閉鎖、
+# チェーン規制、冬用タイヤ規制出现和消失的时刻，用来核对预警规则。只记事实，不存原始数据。
+# GitHub 的定时运行常晚几十分钟，偶尔会跳过一次；每次实际取数的时刻记在 data/ihighway/polls/。
+on:
+  schedule:
+    - cron: '7,37 * * * *'
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/ihighway.yml'
+      - 'scripts/ihighway_log.py'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ihighway
+  cancel-in-progress: false
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: 取数并记录
+        run: python3 scripts/ihighway_log.py
+      - name: 提交
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add data/ihighway
+          if git diff --cached --quiet; then
+            echo "没有变化"
+            exit 0
+          fi
+          git commit -q -m "iHighway 取数 $(TZ=Asia/Tokyo date +%m-%dT%H:%M)"
+          for i in 1 2 3 4 5; do
+            git pull -q --rebase && git push -q && break
+            sleep $((RANDOM % 15 + 5))
+          done
