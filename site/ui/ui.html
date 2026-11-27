@@ -243,7 +243,7 @@ const LEVELS = {
   red:    { emoji:'🔴', label:'不宜出行',      sub:'可能封高速或严重拥堵', full:'不宜出行（风雪可能让高速封闭或严重拥堵）', short:'<span class="nw">不宜</span><span class="nw">出行</span>', glyph:'✕' },
   orange: { emoji:'🟠', label:'要注意',        sub:'能走，但要有预案', full:'要注意：能走，但要有预案',    short:'注意',   glyph:'▲' },
   green:  { emoji:'🟢', label:'没有触发规则',   sub:'不等于安全',      full:'没有触发任何规则（不等于安全）', short:'未触发', glyph:'○' },
-  gray:   { emoji:'⚪', label:'无法判定',       sub:'缺数据',          full:'无法判定（缺数据）',          short:'缺数据', glyph:'？' }
+  gray:   { emoji:'⬜', label:'无法判定',       sub:'缺数据',          full:'无法判定（缺数据）',          short:'缺数据', glyph:'？' }
 };
 const PAST = { emoji:'⌛', label:'这个时段已过', sub:'', full:'这个时段已过', short:'已过', glyph:'–' };
 const lvOf = x => (x && x.past ? PAST : lv(x && x.level));
