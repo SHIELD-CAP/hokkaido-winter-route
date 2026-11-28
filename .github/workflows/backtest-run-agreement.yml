@@ -1,0 +1,35 @@
+name: 几轮一致回测
+
+# 雪带（R8）判红要不要看"几轮一致"：提前一天、提前两天两轮（2025–26 冬季加 2026 年 11 月），以及 2026 年 11 月相隔 3 小时的连续各轮。
+# 改了脚本就自动跑，也可手动运行。
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/backtest_run_agreement.py'
+      - '.github/workflows/backtest-run-agreement.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: 回测
+        run: python3 scripts/backtest_run_agreement.py
+      - name: 提交结果
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add data/backtest/run_agreement.md data/backtest/run_agreement.json
+          if git diff --cached --quiet; then echo "没有变化"; exit 0; fi
+          git commit -m "几轮一致回测 $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3 4 5; do
+            git pull --rebase && git push && exit 0
+            sleep $((i * 5))
+          done
+          exit 1

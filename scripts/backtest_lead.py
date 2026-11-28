@@ -68,7 +68,7 @@ def wilson(k, n, z=1.96):
     d = 1 + z * z / n
     c = (p + z * z / (2 * n)) / d
     h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / d
-    return (c - h, c + h)
+    return (max(0.0, c - h), min(1.0, c + h))   # 夹在 0–1 之间，免得浮点误差显示成 -0%
 
 
 def main():
