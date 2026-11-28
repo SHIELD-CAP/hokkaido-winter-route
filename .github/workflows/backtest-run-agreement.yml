@@ -20,12 +20,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: 回测
+        # 第一段算完就先写文件；第二段（单轮接口）慢，超时也照样提交第一段
+        timeout-minutes: 30
+        continue-on-error: true
         run: python3 scripts/backtest_run_agreement.py
       - name: 提交结果
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add data/backtest/run_agreement.md data/backtest/run_agreement.json
+          git add data/backtest/run_agreement.md data/backtest/run_agreement.json || { echo "没有结果文件"; exit 1; }
           if git diff --cached --quiet; then echo "没有变化"; exit 0; fi
           git commit -m "几轮一致回测 $(date -u +%Y-%m-%dT%H:%MZ)"
           for i in 1 2 3 4 5; do

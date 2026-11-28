@@ -13,16 +13,16 @@
   只回测降水量这一半；R8 的另一半"气象厅给了雪的信号"去年没有存档，回测不了。
 第二段：相隔 3 小时的连续几轮（只有 2026 年 11 月）
   数据：Open-Meteo 单轮接口（single-runs-api），2026-04-02 起存档每个模式的每一轮。
-  对 2026 年 11 月的每个目标日，算每一轮各自的去程、回程雪带最大值（该轮的预报要完整盖住时间窗才算），
-  列出有一轮越线或封了路的日子里各轮的变化。晚间日报（20:20）能用到的是前一天 06、09、12、15 时起算的 4 轮
-  （15 时那轮要到 19:30–20:30 才出来，可能赶不上）。样本很小，只作个案描述。
+  对 2026 年 11 月的每个目标日，只取晚间日报（20:20）能用到的 4 轮：前一天 06、09、12、15 时起算
+  （15 时那轮要到 19:30–20:30 才出来，可能赶不上），算每一轮各自的去程、回程雪带最大值（该轮的预报要完整盖住时间窗才算），
+  列出有一轮越线或封了路的日子里这 4 轮的变化。样本很小，只作个案描述。
 
 时刻：降水是"该小时结束时刻"之前一小时的合计，全部按东京时间；3 小时、6 小时合计不跨缺测的小时。
 区间：威尔逊 95% 区间；封路日常连着几天，实际不确定性比区间更大。样本内，没有调门槛。
 用法：python3 scripts/backtest_run_agreement.py
 结果：data/backtest/run_agreement.md、data/backtest/run_agreement.json
 """
-import datetime as dt, json, math, pathlib, sys, time, urllib.error, urllib.parse, urllib.request
+import concurrent.futures as cf, datetime as dt, json, math, pathlib, sys, time, urllib.error, urllib.parse, urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import backtest_snowband as bs  # noqa: E402  复用格点、标签、滑动合计、时间窗，和 R8 的回测同一口径
@@ -190,41 +190,51 @@ def part_b(L, LT):
     pts = bs.P9
     now = dt.datetime.now(dt.timezone.utc)
     first_day, last_day = dt.date(2026, 11, 1), (now.astimezone(JST) + dt.timedelta(days=1)).date()
-    t = dt.datetime(2026, 10, 30, 12, tzinfo=dt.timezone.utc)
+    # 只取晚间日报能用到的 4 轮：目标日前一天 06、09、12、15 时（东京时间）起算
     runs = []
-    while t <= now - dt.timedelta(hours=4):
-        runs.append(t)
-        t += dt.timedelta(hours=3)
+    d = first_day
+    while d <= last_day:
+        for h in EVENING:
+            r = dt.datetime(d.year, d.month, d.day, h, tzinfo=JST) - dt.timedelta(days=1)
+            if r.astimezone(dt.timezone.utc) <= now - dt.timedelta(hours=4):
+                runs.append(r.astimezone(dt.timezone.utc))
+        d += dt.timedelta(days=1)
     base = dict(coords(pts), models='jma_msm', hourly='precipitation,temperature_2m', timezone='Asia/Tokyo')
     got, errs, note = {}, [], ''
-    for r in runs:
+
+    def one(r):
         q = dict(base, run=r.strftime('%Y-%m-%dT%H:%M'))
         url = 'https://single-runs-api.open-meteo.com/v1/forecast?' + urllib.parse.urlencode(q, safe=',/:')
-        try:
-            try:
-                data = get(url, tries=4)
-            except RuntimeError as e:
-                # 单轮接口若不认 elevation／cell_selection，去掉这两项再试一次，以后都不带
-                if str(e).startswith('HTTP 400') and 'cell_selection' in base and not got:
-                    base.pop('elevation'), base.pop('cell_selection')
-                    note = '（单轮接口不认 elevation／cell_selection，第二段改用默认格点选取，与第一段可能差一格）'
-                    q = dict(base, run=r.strftime('%Y-%m-%dT%H:%M'))
-                    url = 'https://single-runs-api.open-meteo.com/v1/forecast?' + urllib.parse.urlencode(q, safe=',/:')
-                    data = get(url, tries=4)
-                else:
-                    raise
-        except Exception as e:
-            errs.append(f'{r:%m-%d %H}Z：{e}')
-            if not got and len(errs) >= 4:     # 一轮都取不到，多半是接口不支持，别一直试
-                break
-            continue
+        data = get(url, tries=4)
         data = data if isinstance(data, list) else [data]
-        series = {}
-        for name, j in zip(pts, data):
-            h = j['hourly']
-            series[name] = cold_series(h['time'], h['precipitation'], h['temperature_2m'])
-        got[r] = series
-        time.sleep(2)
+        return {name: cold_series(j['hourly']['time'], j['hourly']['precipitation'], j['hourly']['temperature_2m'])
+                for name, j in zip(pts, data)}
+
+    # 先单独试第一轮：接口若不认 elevation／cell_selection，去掉这两项，以后都不带
+    if runs:
+        try:
+            got[runs[0]] = one(runs[0])
+        except RuntimeError as e:
+            if str(e).startswith('HTTP 400'):
+                base.pop('elevation'), base.pop('cell_selection')
+                note = '（单轮接口不认 elevation／cell_selection，第二段改用默认格点选取，与第一段可能差一格）'
+                try:
+                    got[runs[0]] = one(runs[0])
+                except Exception as e2:
+                    errs.append(f'{runs[0]:%m-%d %H}Z：{e2}')
+            else:
+                errs.append(f'{runs[0]:%m-%d %H}Z：{e}')
+    if got:
+        with cf.ThreadPoolExecutor(max_workers=3) as ex:
+            futs = {ex.submit(one, r): r for r in runs[1:]}
+            for k, fu in enumerate(cf.as_completed(futs), 1):
+                r = futs[fu]
+                try:
+                    got[r] = fu.result()
+                except Exception as e:
+                    errs.append(f'{r:%m-%d %H}Z：{e}')
+                if k % 10 == 0:
+                    print(f'第二段：{k}/{len(runs) - 1} 轮，失败 {len(errs)}', flush=True)
 
     def covered(s, d, need):
         base_t = dt.datetime(d.year, d.month, d.day)
@@ -317,6 +327,10 @@ def main():
             f'生成：{now}（东京时间），脚本 `scripts/backtest_run_agreement.py`，口径见脚本开头。'
             '数据：Weather data by Open-Meteo.com（CC BY 4.0），原始模式为日本气象厅 MSM。', '']
     a_md, a_js = part_a(L, LT)
+    print(a_md, flush=True)
+    (OUT / 'run_agreement.md').write_text('\n'.join(head) + '\n' + a_md + '\n\n## 第二段\n\n没跑完。\n', encoding='utf-8')
+    (OUT / 'run_agreement.json').write_text(json.dumps({'generated_jst': now, 'part_a': a_js}, ensure_ascii=False, indent=1),
+                                            encoding='utf-8')
     try:
         b_md, b_js = part_b(L, LT)
     except Exception as e:      # 第二段失败不影响第一段
@@ -324,7 +338,7 @@ def main():
     (OUT / 'run_agreement.md').write_text('\n'.join(head) + '\n' + a_md + '\n\n' + b_md + '\n', encoding='utf-8')
     (OUT / 'run_agreement.json').write_text(json.dumps({'generated_jst': now, 'part_a': a_js, 'part_b': b_js},
                                                        ensure_ascii=False, indent=1), encoding='utf-8')
-    print((OUT / 'run_agreement.md').read_text(encoding='utf-8'))
+    print(b_md, flush=True)
 
 
 if __name__ == '__main__':
