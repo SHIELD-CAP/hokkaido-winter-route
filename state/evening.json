@@ -1,11 +1,11 @@
 {
  "run": "evening",
- "run_time": "2026-11-28T21:09+09:00",
+ "run_time": "2026-11-28T21:20+09:00",
  "rules": "v7（做法 B）",
  "engine": {
-  "file": "data/site_log/2026/11/28/2057.json.gz",
-  "run_jst": "2026-11-28 20:57 JST",
-  "commit": "4bc8c78",
+  "file": "data/site_log/2026/11/28/2118.json.gz",
+  "run_jst": "2026-11-28 21:18 JST",
+  "commit": "7469312",
   "age_hours": 0.0
  },
  "msm": "程序直接取，MSM 11-28 15:00 起算（ECMWF 11-28 09:00 起算）",
@@ -713,6 +713,6 @@
    "changes": []
   }
  ],
- "closures": "未查到封闭消息；iHighway 20:50：北海道高速没有封闭和冬季规制；JR 快速エアポート 11/29 没有停运、减班预告（JR 数据 20:57）",
+ "closures": "未查到封闭消息；iHighway 21:15：北海道高速没有封闭和冬季规制；JR 快速エアポート 11/29 没有停运、减班预告（JR 数据 21:18）",
  "missing": []
 }
