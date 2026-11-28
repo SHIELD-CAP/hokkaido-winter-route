@@ -793,7 +793,7 @@ function farWeekSnow(ctx, ds) {
 function bandHistFor(ctx, key, liveInit) {
   const hist = ctx.bandHist;
   if (!hist || !liveInit) return [];
-  return hist.filter(r => r.init < liveInit && r.cells[key]).map(r => ({ init: r.init, v3: r.cells[key][0], v6: r.cells[key][1] })).slice(-3);
+  return hist.filter(r => r.init < liveInit && r.cells[key]).map(r => ({ init: r.init, v3: r.cells[key][0], v6: r.cells[key][1], pn: r.cells[key][2] })).slice(-3);
 }
 const runLabel = ms => { const p = jp(ms); return `${p.d}日${pad(p.h)}时`; };
 const bandKey = (route, seg, ds) => (route.kind === 'timeline' ? `${route.id}|${ds}|${seg.id}` : `${route.id}|${ds}|${seg.id}|${pad(seg.h0)}`);
@@ -1332,13 +1332,13 @@ function evalWindow(ctx, route, seg, ds, offset) {
       const prev = bandHistFor(ctx, bandKey(route, seg, ds), ctx.msmInit);
       let histTxt = '', histShort = '';
       if (prev.length) {
-        const all = prev.concat([{ init: ctx.msmInit, v3: top.v3, v6: top.v6 }]);
+        const all = prev.concat([{ init: ctx.msmInit, v3: top.v3, v6: top.v6, pn: top.pn }]);
         const n = all.filter(x => bandOver(x.v3, x.v6)).length, nowOver = bandOver(top.v3, top.v6);
         const tail = nowOver && n === 1 ? '，雪带是这一轮新出现的' : (!nowOver && n > 0 ? '，之前越过线，最新一轮在线下' : '');
-        histTxt = `最近几轮 MSM（按起算时刻）的 3 小时最大值：${all.map((x, i) => `${runLabel(x.init)} ${f1(x.v3)} mm${x.v3 < BAND_RED.h3 && x.v6 != null && x.v6 >= BAND_RED.h6 ? `（6 小时 ${f1(x.v6)} mm）` : ''}${i === all.length - 1 ? '（最新）' : ''}`).join(' · ')}；${all.length} 轮里 ${n} 轮越线${tail}。`;
+        histTxt = `最近几轮 MSM（按起算时刻）的 3 小时最大值：${all.map((x, i) => `${runLabel(x.init)} ${f1(x.v3)} mm${x.v3 < BAND_RED.h3 && x.v6 != null && x.v6 >= BAND_RED.h6 ? `（6 小时 ${f1(x.v6)} mm）` : ''}${x.pn && x.pn !== top.pn ? `（${x.pn}）` : ''}${i === all.length - 1 ? '（最新）' : ''}`).join(' · ')}；${all.length} 轮里 ${n} 轮越线${tail}。地点没注明的和最新一轮相同（${top.pn}附近）。`;
         histShort = `，最近 ${all.length} 轮 ${n} 轮越线${nowOver && n === 1 ? '（新出现）' : ''}`;
       }
-      const src = 'Open-Meteo 提供的模式格点数值（MSM）', short = `${top.pn}附近格点 ${vsLine}（雪带${histShort}）`;
+      const src = 'Open-Meteo 提供的模式格点数值（MSM）', short = `${top.pn}附近格点雪带 ${vsLine}${histShort}`;
       if (red || (org && !seg.bandNoOrg)) {   // 2026-11-28：出了雪带依据才加表（机场线道央道段只到预警线时不出依据，见下）。依据表原来只列本时段的几个小时，雪带算到的时刻常在时段之前，表里全是 0；这里把算到的那 6 小时（或 3 小时）单列在最前面
         const s = ctx.om.msm.series[top.pid], a = top.t - (top.v6 != null ? 6 : 3) * H;
         const hl = t => (t <= msAt(ds, 0) ? '前一天 ' + (jp(t).h || 24) : pad(hourLabel(t, ds)));
