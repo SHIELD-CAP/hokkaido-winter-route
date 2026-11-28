@@ -22,7 +22,7 @@ concurrency:
 jobs:
   fetch:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -40,7 +40,9 @@ jobs:
             exit 0
           fi
           git commit -m "取数据 $(date -u +%Y-%m-%dT%H:%MZ)"
-          for i in 1 2 3; do
-            git pull --rebase && git push && break
-            sleep 10
+          for i in 1 2 3 4 5; do
+            git pull --rebase && git push && exit 0
+            sleep $((i * 10))
           done
+          echo "推送失败"
+          exit 1

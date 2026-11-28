@@ -59,7 +59,8 @@ const jst = new Date(now.getTime() + 9 * 3600e3).toISOString().slice(0, 16).repl
 const dayDir = path.join('data', 'archive', iso.slice(0, 4), iso.slice(5, 7), iso.slice(8, 10));
 const logRows = [];
 
-async function get(url, tries = 3) {
+// 失败重试：间隔 20、40、80 秒（2026-11-28 第三轮审阅后由 3 次改为 4 次；11-28 16:55 那次 MSM 三次都是 fetch failed）
+async function get(url, tries = 4) {
   let last = null;
   for (let i = 0; i < tries; i++) {
     try {
@@ -69,7 +70,7 @@ async function get(url, tries = 3) {
       last = { ok: false, status: r.status, text };
       if (r.status !== 429 && r.status < 500) break;               // 4xx（429 以外）重试也没用
     } catch (e) { last = { ok: false, status: 0, text: String(e) }; }
-    await new Promise(res => setTimeout(res, 20000 * (i + 1)));
+    if (i < tries - 1) await new Promise(res => setTimeout(res, 20000 * 2 ** i));
   }
   return last;
 }
