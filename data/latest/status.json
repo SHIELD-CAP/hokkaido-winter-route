@@ -1,9 +1,9 @@
 {
- "fetched_utc": "2026-11-28T01:57:51.803Z",
- "fetched_jst": "2026-11-28 10:57 JST",
+ "fetched_utc": "2026-11-28T04:40:39.070Z",
+ "fetched_jst": "2026-11-28 13:40 JST",
  "msm": {
   "ok": true,
-  "init_utc": null
+  "init_utc": "2026-11-27T21:00:00.000Z"
  },
  "ifs": {
   "ok": true,
@@ -18,7 +18,7 @@
  "jma": {
   "ok": 12,
   "of": 12,
-  "archived_changed": 10
+  "archived_changed": 0
  },
  "jma_extra": {
   "info_archived": 0,
