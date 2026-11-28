@@ -1,0 +1,34 @@
+name: 试探往期预报
+
+# 看 Open-Meteo 往期预报接口里各模式提前 1～5 天的预报从哪天起取得到（为提前 3～5 天回测做准备）。改了脚本就自动跑，也可手动运行。
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/probe_previous_runs.py'
+      - '.github/workflows/probe.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: 试探
+        run: python3 scripts/probe_previous_runs.py
+      - name: 提交结果
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add data/backtest/probe_previous_runs.md
+          if git diff --cached --quiet; then echo "没有变化"; exit 0; fi
+          git commit -m "往期预报试探 $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3 4 5; do
+            git pull --rebase && git push && exit 0
+            sleep $((i * 5))
+          done
+          exit 1
