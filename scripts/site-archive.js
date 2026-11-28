@@ -19,7 +19,7 @@ const JST = 9 * 3600e3;
 
 function readJson(f) { const b = fs.readFileSync(f); return JSON.parse(f.endsWith('.gz') ? zlib.gunzipSync(b) : b); }
 function iso(ms) { return ms ? new Date(ms).toISOString() : null; }
-function jstStamp(ms) { const d = new Date(ms + JST); const p = n => String(n).padStart(2, '0'); return { y: d.getUTCFullYear(), m: p(d.getUTCMonth() + 1), d: p(d.getUTCDate()), hm: p(d.getUTCHours()) + p(d.getUTCMinutes()), text: `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} JST` }; }
+function jstStamp(ms) { const d = new Date(ms + JST); const p = n => String(n).padStart(2, '0'); return { y: String(d.getUTCFullYear()), m: p(d.getUTCMonth() + 1), d: p(d.getUTCDate()), hm: p(d.getUTCHours()) + p(d.getUTCMinutes()), text: `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())} JST` }; }
 
 // 仓库副本 → 网站引擎用的格式（点的顺序按 HKR.PTS）
 function repoModel(key) {
