@@ -1,13 +1,13 @@
 {
- "fetched_utc": "2026-11-28T11:27:54.654Z",
- "fetched_jst": "2026-11-28 20:27 JST",
+ "fetched_utc": "2026-11-28T13:45:52.204Z",
+ "fetched_jst": "2026-11-28 22:45 JST",
  "msm": {
   "ok": true,
-  "init_utc": "2026-11-28T06:00:00.000Z"
+  "init_utc": "2026-11-28T09:00:00.000Z"
  },
  "ifs": {
   "ok": true,
-  "init_utc": "2026-11-28T00:00:00.000Z"
+  "init_utc": "2026-11-28T06:00:00.000Z"
  },
  "msm_grid": {
   "ok": true
