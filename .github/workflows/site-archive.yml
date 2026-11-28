@@ -1,6 +1,7 @@
 name: 网站判级存档
 
-# 用和网站完全相同的 site/src/engine.js 取数、判级，把结果存进 data/site_log/年/月/日/时分.json.gz。
+# 用和网站完全相同的 site/src/engine.js 取数、判级，把结果存进 data/site_log/年/月/日/时分.json.gz；
+# 传给引擎的全部输入另存到 site-inputs 分支（同名文件），以后改规则可以在真实历史上重放。
 # 网站在访问者设备上现算、算完不留；这份存档用来在冬天结束后检验网站本身的成绩。
 on:
   schedule:
@@ -27,11 +28,35 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: 取输入整包分支（site-inputs，只放数据，不让主分支越来越大）
+        uses: actions/checkout@v4
+        with:
+          ref: site-inputs
+          path: inputs
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
       - name: 按网站规则判级并存档
+        env:
+          SITE_INPUTS_DIR: inputs
         run: node scripts/site-archive.js
+      - name: 提交输入整包（site-inputs 分支）
+        working-directory: inputs
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "没有新的输入整包"
+            exit 0
+          fi
+          git commit -m "输入整包 $(TZ=Asia/Tokyo date +%m-%dT%H:%M)"
+          for i in 1 2 3 4 5; do
+            git pull --rebase origin site-inputs && git push origin HEAD:site-inputs && exit 0
+            sleep $((i * 5))
+          done
+          echo "推送失败"
+          exit 1
       - name: 提交
         run: |
           git config user.name "github-actions[bot]"

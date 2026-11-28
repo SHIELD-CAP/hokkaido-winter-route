@@ -74,7 +74,7 @@ async function load() {
   return inputs;
 }
 
-function slimReasons(rs) { return (rs || []).map(r => ({ level: r.level, rule: r.rule || '', text: r.text })); }
+function slimReasons(rs) { return (rs || []).map(r => ({ level: r.level, rule: r.rule || '', text: r.text, short: r.short || '', dk: r.dk || '' })); }
 
 (async () => {
   const t0 = Date.now();
@@ -101,8 +101,8 @@ function slimReasons(rs) { return (rs || []).map(r => ({ level: r.level, rule: r
       id: rt.id, short: rt.short,
       days: rt.days.map(d => {
         const o = { date: d.date, level: d.level, headline: d.headline || '', missing: d.missing || [], reasons: (d.reasons || []).map(r => ({ level: r.level, text: r.text })) };
-        if (d.segments) o.segments = d.segments.map(s => ({ id: s.id, name: s.name, time: s.time, level: s.level, past: !!s.past, reasons: slimReasons(s.reasons) }));
-        if (d.grid) o.grid = { rows: d.grid.rows.map(r => r.id + ' ' + r.name), cols: d.grid.cols, cells: d.grid.cells.map(row => row.map(c => ({ level: c.level, past: !!c.past, reasons: slimReasons(c.reasons) }))) };
+        if (d.segments) o.segments = d.segments.map(s => ({ id: s.id, name: s.name, time: s.time, level: s.level, past: !!s.past, reasons: slimReasons(s.reasons), raw: s.raw || [] }));
+        if (d.grid) o.grid = { rows: d.grid.rows.map(r => r.id + ' ' + r.name), cols: d.grid.cols, cells: d.grid.cells.map(row => row.map(c => ({ level: c.level, past: !!c.past, reasons: slimReasons(c.reasons), raw: c.raw || [] }))) };
         return o;
       })
     }))
@@ -111,7 +111,15 @@ function slimReasons(rs) { return (rs || []).map(r => ({ level: r.level, rule: r
   const lv = { black: '⬛', red: '🔴', orange: '🟠', green: '🟢', gray: '⬜' };
   for (const rt of out.routes) console.log(rt.short, rt.days.map(d => d.date.slice(5) + (lv[d.level] || d.level)).join(' '));
   console.log('输入：', Object.entries(inputs).map(([k, v]) => `${k}:${v.source}${v.init ? '(' + v.init + ')' : ''}${v.err ? '(' + String(v.err).slice(0, 60) + ')' : ''}`).join(' '));
-  if (OFFLINE) { console.log('离线自检，不写文件；JSON', json.length, '字节，gzip 后', zlib.gzipSync(json).length, '字节'); return; }
+  const rawJson = JSON.stringify({ run_utc: iso(now), now, commit: process.env.GITHUB_SHA || null, RAW });
+  if (OFFLINE) { console.log('离线自检，不写文件；结果 JSON', json.length, '字节，gzip 后', zlib.gzipSync(json).length, '字节；输入整包', rawJson.length, '字节，gzip 后', zlib.gzipSync(rawJson).length, '字节'); return; }
+  // 输入整包：传给 buildView 的全部数据，以后改了规则可以在真实历史上重放（HKR.buildView(RAW, now)）。放在另一个分支，不让主分支越来越大
+  if (process.env.SITE_INPUTS_DIR) {
+    const idir = path.join(process.env.SITE_INPUTS_DIR, st.y, st.m, st.d);
+    fs.mkdirSync(idir, { recursive: true });
+    fs.writeFileSync(path.join(idir, st.hm + '.json.gz'), zlib.gzipSync(rawJson));
+    console.log('输入整包：', path.join(st.y, st.m, st.d, st.hm + '.json.gz'), rawJson.length, '字节');
+  }
   const dir = path.join(ROOT, 'data/site_log', st.y, st.m, st.d);
   fs.mkdirSync(dir, { recursive: true });
   const f = path.join(dir, st.hm + '.json.gz');
