@@ -3,6 +3,7 @@ name: 网站判级存档
 # 用和网站完全相同的 site/src/engine.js 取数、判级，把结果存进 data/site_log/年/月/日/时分.json.gz；
 # 传给引擎的全部输入另存到 site-inputs 分支（同名文件），以后改规则可以在真实历史上重放。
 # 网站在访问者设备上现算、算完不留；这份存档用来在冬天结束后检验网站本身的成绩。
+# 另写 data/latest/band_history.json（雪带最近几轮），网站的雪带依据从这里读“最近几轮”。
 on:
   schedule:
     - cron: '5 */3 * * *'   # 每 3 小时：世界时 00:05、03:05……，即日本时间 09:05、12:05、15:05、18:05、21:05、00:05、03:05、06:05
@@ -61,7 +62,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898333+github-actions[bot]@users.noreply.github.com"
-          git add data/site_log
+          git add data/site_log data/latest/band_history.json
           if git diff --cached --quiet; then
             echo "没有变化"
             exit 0

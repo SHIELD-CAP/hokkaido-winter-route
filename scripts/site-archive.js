@@ -120,6 +120,30 @@ function slimReasons(rs) { return (rs || []).map(r => ({ level: r.level, rule: r
     fs.writeFileSync(path.join(idir, st.hm + '.json.gz'), zlib.gzipSync(rawJson));
     console.log('输入整包：', path.join(st.y, st.m, st.d, st.hm + '.json.gz'), rawJson.length, '字节');
   }
+  // 雪带最近几轮（2026-11-28 加）：这一轮 MSM 在各高速段、各天算出的雪带最大值，网站在雪带依据里列“最近几轮”用。
+  // 键和网站 engine.js 的 bandKey 一致：一日游“A|日期|段”，机场线“B|日期|行|起始时”。只留起算时刻在最近 48 小时内的最多 16 轮。
+  {
+    const msmInit = RAW.meta_msm && RAW.meta_msm.ok && RAW.meta_msm.data ? RAW.meta_msm.data.init : null;
+    if (msmInit) {
+      const cells = {}, today = V.routes[0] && V.routes[0].days[0] ? V.routes[0].days[0].date : '';
+      for (const rt of V.routes) for (const d of rt.days.slice(0, 4)) {
+        const put = (k, b, past) => { if (b && !past) cells[k] = [b.v3, b.v6, b.pn]; };
+        (d.segments || []).forEach(s => put(`${rt.id}|${d.date}|${s.id}`, s.band, s.past));
+        if (d.grid) d.grid.cells.forEach((row, ri) => row.forEach((c, ci) => put(`${rt.id}|${d.date}|${d.grid.rows[ri].id}|${d.grid.cols[ci].slice(0, 2)}`, c.band, c.past)));
+      }
+      const hf = path.join(ROOT, 'data/latest/band_history.json');
+      let hist = { runs: [] };
+      try { hist = JSON.parse(fs.readFileSync(hf, 'utf8')); if (!Array.isArray(hist.runs)) hist.runs = []; } catch (e) { /* 第一次没有这个文件 */ }
+      const iu = iso(msmInit);
+      hist.runs = hist.runs.filter(r => r.init_utc !== iu && now - Date.parse(r.init_utc) <= 48 * 3600e3);
+      hist.runs.push({ init_utc: iu, computed_utc: iso(now), msm_source: inputs.msm ? inputs.msm.source : '', from_day: today, cells });
+      hist.runs.sort((a, b) => Date.parse(a.init_utc) - Date.parse(b.init_utc));
+      hist.runs = hist.runs.slice(-16);
+      hist.note = '雪带最近几轮：每一轮 MSM（init_utc 是起算时刻）在各高速段、各天算出的雪带最大值 [3 小时 mm, 6 小时 mm, 地点]。由 scripts/site-archive.js 用网站同一个程序算出；键见脚本注释。';
+      fs.writeFileSync(hf, JSON.stringify(hist));
+      console.log('雪带最近几轮：', hist.runs.length, '轮，这一轮', Object.keys(cells).length, '格');
+    }
+  }
   const dir = path.join(ROOT, 'data/site_log', st.y, st.m, st.d);
   fs.mkdirSync(dir, { recursive: true });
   const f = path.join(dir, st.hm + '.json.gz');

@@ -6,6 +6,15 @@ import re, pathlib, sys
 root = pathlib.Path(__file__).parent
 ui = (root / 'ui' / 'ui.html').read_text(encoding='utf-8')
 engine = (root / 'src' / 'engine.js').read_text(encoding='utf-8') + '\n' + (root / 'src' / 'bandmap.js').read_text(encoding='utf-8')
+import subprocess
+try:
+    sha = subprocess.run(['git', 'rev-parse', '--short=7', 'HEAD'], cwd=root, capture_output=True, text=True, check=True).stdout.strip()
+    dirty = subprocess.run(['git', 'status', '--porcelain', '--', 'src', 'ui'], cwd=root, capture_output=True, text=True).stdout.strip()
+    sha += '+改' if dirty else ''
+except Exception:
+    sha = '未知'
+assert "const BUILD = '__BUILD__';" in engine, 'BUILD placeholder missing'
+engine = engine.replace("const BUILD = '__BUILD__';", f"const BUILD = '{sha}';", 1)   # 页脚显示规则版本和代码提交号
 
 start = ui.index('/* =====================================================================\n * 样例数据')
 end_marker = "render(window.VIEW || MOCK_VIEW);"

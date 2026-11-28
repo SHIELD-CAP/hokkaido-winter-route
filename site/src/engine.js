@@ -7,7 +7,8 @@
 (function (root) {
 'use strict';
 
-const RULES_VERSION = 'v6 · 2026-11-28 修订';
+const BUILD = '__BUILD__';        // build.py 换成仓库提交号的前 7 位；直接用源码（存档脚本）时保持原样
+const RULES_VERSION = 'v6.1 · 2026-11-28 晚修订' + (/^__/.test(BUILD) ? '' : ' · 代码 ' + BUILD);
 const JMA = 'https://www.jma.go.jp/bosai/';
 const OM = 'https://api.open-meteo.com/v1/forecast';
 const OME = 'https://ensemble-api.open-meteo.com/v1/ensemble';
@@ -639,6 +640,11 @@ const VIS_RED = 200, VIS_ORANGE = 500;   // R3、O1：推定视程（米）
 const DRY_T = 0;         // 干雪：气温 0 ℃ 以下
 const BAND_T = 0.5;                       // R8、O9、R9：气温不高于 0.5 ℃ 的降水才算
 const BAND_RED = { h3: 7, h6: 10 }, BAND_ORG = { h3: 4.5, h6: 6 };   // R8、O9：3 小时、6 小时合计（mm）
+// R8f、O9f：第 4～6 天一日游高速段的雪带（2026-11-28 M 定：和前 3 天同一个标准，同一种颜色代表同样的危险程度；两家全球模式都达到才亮）。
+// 量是目标日 01–24 时沿线 9 个点里最多的一点、0.5 ℃ 以下的降水全天合计（mm）；门槛按 2025–26 冬季加 2026 年 11 月 176 天回测定
+// （scripts/lead_agree.py：红的日子约七成封过路，和前 3 天的红相当；橙约四成，和前 3 天的橙相当）。只能当排名用，不是实际雪量。
+const FAR_BAND = { red: { e: 4.8, g: 4.2 }, org: { e: 3.6, g: 3.3 } };
+const FAR_PTS = ['A1', 'A2', 'A3', 'A4', 'E1', 'E2', 'E3', 'E4', 'E5'];   // 和回测同样的 9 个点（一日游去程雪带的格点）
 const OBS_P3 = 5, OBS_S3 = 6, OBS_VIS = 500, OBS_AHEAD = 8;   // R9：实测 3 小时降水（mm）、3 小时降雪（cm）、10 分钟视程（m）；只管最新观测之后 8 小时内开始的时段
 /* 折算降雪量 Q（cm/h）：取 Open-Meteo 的 snowfall 与“降水量×0.7（气温≤SNOW_T 时）”中较大的一个，只用来判“有没有雪”，不展示 */
 function withQ(s) {
@@ -647,7 +653,7 @@ function withQ(s) {
   return Object.assign({}, s, { Q });
 }
 const RANK = { black: 4, red: 3, orange: 2, gray: 1, green: 0 };
-const PRIO = ['K4', 'K1', 'K2', 'R1', 'R9', 'R2', 'R3', 'R5', 'R7', 'R4', 'H2', 'R8', 'R4m', 'W1', 'W2', 'O1', 'O2', 'R9o', 'O9', 'O6', 'O3', 'O4', 'O7', 'O5', 'R7o', 'O8', 'E1', 'H1'];
+const PRIO = ['K4', 'K1', 'K2', 'R1', 'R9', 'R2', 'R3', 'R5', 'R7', 'R4', 'H2', 'R8', 'R8f', 'R4m', 'W1', 'W2', 'O1', 'O2', 'R9o', 'O9', 'O9f', 'O6', 'O3', 'O4', 'O7', 'O5', 'R7o', 'O8', 'E1', 'H1'];
 const prio = r => { const i = PRIO.indexOf(r.rule); return i < 0 ? 99 : i; };
 const byLevelPrio = (a, b) => (RANK[b.level] - RANK[a.level]) || (prio(a) - prio(b));
 const LV_WORD = { black: '可能交通瘫痪', red: '不宜出行', orange: '要注意' };
@@ -714,6 +720,84 @@ function snowSigns(ctx, seg, ds, a, b) {
   }
   return why;
 }
+/* 今天生效的警报、注意报管不管某段时间（2026-11-28 定）：看危険度の時系列里这个市町在这段时间的对应一项有没有达到它的级别。
+ * 返回 true／false；时间序列没取到、没有这个市町或这一项、没有和这段时间重叠的格时返回 null（这时按“目前有效”算） */
+const WARN_TL = { '02': ['windSig', 3], '05': ['windSig', 3], '35': ['windSig', 3], '06': ['snowSig', 3], '12': ['snowSig', 2], '13': ['windSig', 2], '26': ['accSig', 2] };
+function warnCovers(ctx, mc, code, a, b) {
+  const m = WARN_TL[code]; if (!m) return null;
+  const tl = ctx.tl[MUNI[mc][1]];
+  if (!tl || !tl.ok) return null;
+  const A = tl.areas[mc]; if (!A || !A[m[0]]) return null;
+  let seen = false;
+  for (let i = 0; i < tl.blocks.length; i++) {
+    const bl = tl.blocks[i]; if (!(bl.s < b && bl.e > a)) continue;
+    seen = true;
+    if ((A[m[0]][i] || 0) >= m[1]) return true;
+  }
+  return seen ? false : null;
+}
+/* 不分时段的预报文字（ふぶく、やや強く、雨雪转换）要有同一时段的佐证才计等级（2026-11-28 定）：地域时序预报这一时段的天气有雪，
+ * 或危険度の時系列本段市町这一时段雪达到注意报标准、6 小时降雪 1 cm 以上。wet＝雨雪转换，“雨か雪”“みぞれ”也算。
+ * 返回 true／false；这一天两样都没有 3 小时格（例如后天）时返回 null */
+function jmaSlotSnow(ctx, seg, a, b, wet) {
+  let seen = false;
+  for (const sc of seg.subs) {
+    const V = ctx.vp && ctx.vp[sc];
+    if (!V || !V.ok) continue;
+    for (const bl of V.blocks) {
+      if (!(bl.s < b && bl.e > a)) continue;
+      seen = true;
+      if (/雪/.test(bl.weather) && (wet || !/雨/.test(bl.weather))) return true;
+      if (wet && /みぞれ/.test(bl.weather)) return true;
+    }
+  }
+  for (const mc of seg.munis) {
+    const tl = ctx.tl[MUNI[mc][1]]; if (!tl || !tl.ok) continue;
+    const A = tl.areas[mc]; if (!A) continue;
+    const s6 = (seg.kind === 'mtn' ? A.snow6max : A.snow6) || A.snow6 || [];
+    for (let i = 0; i < tl.blocks.length; i++) {
+      const bl = tl.blocks[i]; if (!(bl.s < b && bl.e > a)) continue;
+      seen = true;
+      if (((A.snowSig || [])[i] || 0) >= 2 || (s6[i] != null && s6[i] >= 1)) return true;
+    }
+  }
+  return seen ? false : null;
+}
+/* R8f、O9f 用：目标日 01–24 时结束的 24 个小时、0.5 ℃ 以下的降水合计，9 个点取最大；有一个点缺小时就返回 null（和回测一样） */
+function farP24(F, ds) {
+  if (!F || !F.ok) return null;
+  const a = msAt(ds, 0), b = msAt(ds, 24);
+  let best = null;
+  for (const s of F.data) {
+    if (!s) return null;
+    let sum = 0, n = 0;
+    for (let i = 0; i < s.t.length; i++) {
+      const t = s.t[i]; if (t <= a || t > b) continue;
+      if (s.P[i] == null || s.T[i] == null) return null;
+      n++; if (s.T[i] <= BAND_T) sum += s.P[i];
+    }
+    if (n < 24) return null;
+    best = best == null ? sum : Math.max(best, sum);
+  }
+  return best == null ? null : Math.round(best * 100) / 100;
+}
+/* 气象厅一周预报（石狩、空知、后志）这天的天气有没有雪：R8f 要的“气象厅雪的信号”。返回 { snow, zh }，没取到返回 null */
+function farWeekSnow(ctx, ds) {
+  const f = ctx.fc['016000'];
+  const w = f && f.ok && f.week && f.week.days[ds];
+  if (!w || !w.wcode) return null;
+  return { snow: TELOPS_SNOW(w.wcode), zh: TELOPS_ZH[w.wcode] || `天气代码 ${w.wcode}`, rd: f.weekRd };
+}
+/* 雪带最近几轮（data/latest/band_history.json，GitHub Actions 每 3 小时用网站同一个程序算一次存下）：
+ * 返回比当前这一轮早的最近 3 轮 [{ init, v3, v6 }]，按起算时刻从早到晚 */
+function bandHistFor(ctx, key, liveInit) {
+  const hist = ctx.bandHist;
+  if (!hist || !liveInit) return [];
+  return hist.filter(r => r.init < liveInit && r.cells[key]).map(r => ({ init: r.init, v3: r.cells[key][0], v6: r.cells[key][1] })).slice(-3);
+}
+const runLabel = ms => { const p = jp(ms); return `${p.d}日${pad(p.h)}时`; };
+const bandKey = (route, seg, ds) => (route.kind === 'timeline' ? `${route.id}|${ds}|${seg.id}` : `${route.id}|${ds}|${seg.id}|${pad(seg.h0)}`);
+const bandOver = (v3, v6) => v3 >= BAND_RED.h3 || (v6 != null && v6 >= BAND_RED.h6);
 /* 本段格点在某段时间里的气温（先用 MSM，没有再用 ECMWF）；没有数返回 null */
 function modelTemps(ctx, seg, a, b) {
   for (const mk of ['msm', 'ifs']) {
@@ -827,6 +911,7 @@ function evalWindow(ctx, route, seg, ds, offset) {
   const addOff = x => { if (!official.includes(x)) official.push(x); };
   const bandSig = new Set();   // R8 要的“气象厅雪的信号”（雪带取数时间窗里）；早期注意信息的［中］不算（2026-11-26 定）
   const bandS0 = seg.bandPts ? ws - (seg.bandPre || 6) * H : ws;   // 雪带取数时间窗：去程从前一天 18 时、回程从当天 05 时起（2026-11-26 定）
+  let bandOut = null;   // 这一轮 MSM 的雪带最大值，存档脚本记进 band_history.json
 
   /* 0. 先看早期注意信息里本段、本时段有没有［高］：R3 的官方信号要用 */
   for (const off of offices) {
@@ -835,29 +920,44 @@ function evalWindow(ctx, route, seg, ds, offset) {
     if (P.periods.some(p => mySubs.includes(p.code) && p.s < we && p.e > ws && (p.snow === '高' || (p.wind === '高' && winSnow.length)))) addOff('早期注意信息［高］');
   }
 
-  /* 1. 现在生效的警报、注意报（只算今天） */
+  /* 1. 现在生效的警报、注意报（只算今天）。2026-11-28 改：按危険度の時系列看它管哪几个小时，本时段不在范围内的不计等级（写进提醒）；
+   * 时间序列认不出时（没取到、没有这个市町或对应的一项）才按“目前有效”算 */
   if (offset === 0) {
-    const byCode = {};
+    const byCode = {}, notIn = {};
     let warnGap = false;
     for (const mc of seg.munis) {
       const W = ctx.warn.by[MUNI[mc][1]];
       if (!W || !W.ok) { warnGap = true; continue; }
       for (const w of W.areas[mc] || []) {
-        const b = byCode[w.code] = byCode[w.code] || { munis: [], rd: w.rd };
+        const cov = warnCovers(ctx, mc, w.code, ws, we);
+        if (cov === false) {
+          const o = notIn[w.code] = notIn[w.code] || { munis: [], rd: w.rd };
+          if (!o.munis.includes(MUNI[mc][0])) o.munis.push(MUNI[mc][0]);
+          // 雪带（R8）的雪信号看的是雪带取数时间窗：本时段之前、窗里还管着的照算
+          if (seg.bandPts && ['02', '06', '12', '13'].includes(w.code) && warnCovers(ctx, mc, w.code, bandS0, we)) bandSig.add(WARN_NAME[w.code]);
+          continue;
+        }
+        const b = byCode[w.code] = byCode[w.code] || { munis: [], rd: w.rd, byTl: true };
         if (!b.munis.includes(MUNI[mc][0])) b.munis.push(MUNI[mc][0]);
+        if (cov === null) b.byTl = false;
         if (w.rd > b.rd) b.rd = w.rd;
       }
     }
     if (warnGap) missing.push('警报、注意报');
+    for (const [code, o] of Object.entries(notIn)) {
+      if (byCode[code] || !WARN_NAME[code] || code === '15') continue;
+      notes.push({ key: 'wn|' + code + '|' + ds + '|' + seg.h0, munis: o.munis.slice(), tpl: m => `气象厅对${m.join('、')}发布的${WARN_NAME[code]}目前有效，但按危险度时间序列，${pad(seg.h0)}–${pad(seg.h1)} 时不在它管的时间里，这个时段不按它判级。` });
+    }
     for (const [code, b] of Object.entries(byCode)) {
       const nm = WARN_NAME[code] || `一种本页不认识的警报或注意报（气象厅代码 ${code}），请看原文`;
       const src = `气象厅警报、注意报，${fmtMD(b.rd)} 发布`, who = b.munis.join('、');
-      const mk = (lv, rule, rt, tail) => add(mkReason(lv, rule, `气象厅对${who}发布了${nm}，目前有效${tail || ''}。`, src, `${who}的${WARN_NAME[code] ? nm + '目前有效' : '不认识的警报代码 ' + code}`, { rt }));
+      const inTl = b.byTl && WARN_TL[code] ? '，按危险度时间序列这个时段在它管的时间里' : '';
+      const mk = (lv, rule, rt, tail) => add(mkReason(lv, rule, `气象厅对${who}发布了${nm}，目前有效${inTl}${tail || ''}。`, src, `${who}的${WARN_NAME[code] ? nm + '目前有效' : '不认识的警报代码 ' + code}`, { rt }));
       if (code === '32' || code === '36') { mk(lvB, 'K4', code === '32' ? '吹雪' : '大雪'); addOff(nm); ev.snowJma = true; bandSig.add(nm); }
       else if (code === '02' || code === '06') { mk('red', 'R1', code === '02' ? '吹雪' : '大雪'); addOff(nm); ev.snowJma = true; bandSig.add(nm); }
       else if (code === '13') { mk('orange', 'O1', '吹雪'); addOff(nm); ev.snowJma = true; ev.windEv = true; bandSig.add(nm); }
       else if (code === '12') { mk('orange', 'O2', '大雪'); addOff(nm); ev.snowJma = true; bandSig.add(nm); }
-      else if (code === '26') add(mkReason('orange', 'O2', `气象厅对${who}发布了${nm}，目前有效。`, src, `${who}的${nm}目前有效`, { rt: '其他', dk: 'warn|26' }));
+      else if (code === '26') add(mkReason('orange', 'O2', `气象厅对${who}发布了${nm}，目前有效${inTl}。`, src, `${who}的${nm}目前有效`, { rt: '其他', dk: 'warn|26' }));
       else if (code === '22') { if (seg.kind === 'mtn') mk('orange', 'O2', '其他', '（回程山路经过山区）'); }
       else if (code === '05' || code === '35') mk('orange', 'W1', '只有风', '；只有风的信息本页最多判橙');
       else if (code === '15') notes.push({ key: 'wo|15', munis: b.munis.slice(), tpl: m => `气象厅对${m.join('、')}发布了强风注意报，目前有效。只有风、没有雪的情况本页不计等级。` });
@@ -924,20 +1024,26 @@ function evalWindow(ctx, route, seg, ds, offset) {
       const main = seg.kind === 'mtn' ? wj : wj.split(/山沿い|所により|山間部/)[0];
       const vstrong = /非常に強く/.test(land), strong = /強く/.test(land.replace(/やや強く|非常に強く/g, '')), mild = /やや強く/.test(land);
       windTxt[sc] = vstrong ? 3 : strong ? 2 : mild ? 1 : 0;
-      if (/猛ふぶき/.test(wj)) fcHit('K1f', 'K1', lvB, '吹雪', { sc, rd, zh: zhForecast(wj) });
-      else if (/暴風雪/.test(wj)) fcHit('X2|' + zhForecast(wj), 'R2', 'red', '吹雪', { sc, rd, zh: zhForecast(wj) });
-      else if (/ふぶく|吹雪|大雪/.test(wj)) { const big = /大雪/.test(wj) && !/ふぶく|吹雪/.test(wj); fcHit('X1|' + zhForecast(wj), big ? 'O2' : 'O1', 'orange', big ? '大雪' : '吹雪', { sc, rd, zh: zhForecast(wj), storm: big ? '有大雪' : '有吹雪' }); }
+      const zhw = zhForecast(wj);
+      // 2026-11-28 定：不分时段的预报文字（ふぶく、やや強く、雨雪转换）要地域时序预报或危険度の時系列同一时段也有雪才计等级，否则写进提醒
+      const noConf = (what, c) => notes.push({ key: 'fcnc|' + what + '|' + sc + '|' + ds, text: `气象厅预报 ${SUB[sc]}：${zhw}。其中${what}没写时段，本页只在地域时序预报或危险度时间序列同一时段也有雪时按它判橙；${c === null ? '这一天没有这两样分时段的预报可以核对' : '有的时段两样都没有雪'}，那些时段不按它判级。` });
+      if (/猛ふぶき/.test(wj)) fcHit('K1f', 'K1', lvB, '吹雪', { sc, rd, zh: zhw });
+      else if (/暴風雪/.test(wj)) fcHit('X2|' + zhw, 'O1', 'orange', '吹雪', { sc, rd, zh: zhw });   // 2026-11-28：不分时段的“暴風雪”最多判橙，不再整天判红
+      else {
+        if (/大雪/.test(wj)) fcHit('X1|大|' + zhw, 'O2', 'orange', '大雪', { sc, rd, zh: zhw, storm: '有大雪' });
+        if (/ふぶく|吹雪/.test(wj)) { const c = jmaSlotSnow(ctx, seg, ws, we); if (c) fcHit('X1|吹|' + zhw, 'O1', 'orange', '吹雪', { sc, rd, zh: zhw, storm: '有吹雪', conf: true }); else noConf('“有吹雪”', c); }
+      }
       if (/大雪|ふぶく|吹雪|暴風雪|猛ふぶき/.test(wj)) ev.snowJma = true;
       if (/雪/.test(main) && (vstrong || strong || mild)) {
-        if (vstrong && strongWithSnow(main, land, seg.areas15, /非常に強く/)) fcHit('K1w', 'K1', lvB, '吹雪', { sc, rd });
-        else if ((vstrong || strong) && strongWithSnow(main, land, seg.areas15)) fcHit('R2w', 'R2', 'red', '吹雪', { sc, rd });
-        else fcHit('O1w|' + (vstrong || strong ? 's' : 'm'), 'O1', 'orange', '吹雪', { sc, rd, split: vstrong || strong });
-        ev.windEv = true;
+        if (vstrong && strongWithSnow(main, land, seg.areas15, /非常に強く/)) { fcHit('K1w', 'K1', lvB, '吹雪', { sc, rd }); ev.windEv = true; }
+        else if ((vstrong || strong) && strongWithSnow(main, land, seg.areas15)) { fcHit('R2w', 'R2', 'red', '吹雪', { sc, rd }); ev.windEv = true; }
+        else if (vstrong || strong) { fcHit('O1w|s', 'O1', 'orange', '吹雪', { sc, rd, split: true }); ev.windEv = true; }
+        else { const c = jmaSlotSnow(ctx, seg, ws, we); if (c) { fcHit('O1w|m', 'O1', 'orange', '吹雪', { sc, rd, split: false, conf: true }); ev.windEv = true; } else noConf('陆上风“やや強く”（稍强）并有雪', c); }
       } else if (vstrong) fcHit('Wv', 'W1', 'orange', '只有风', { sc, rd });
-      // O4 雨雪转换：预报写“雨後雪”“雨か雪”“みぞれ”，并且这段时间气温在 −1～2 ℃
+      // O4 雨雪转换：预报写“雨後雪”“雨か雪”“みぞれ”，并且这段时间气温在 −1～2 ℃；2026-11-28 起还要同一时段有雪的佐证（见上）
       if (TELOPS_RAIN_THEN_SNOW.has(d.wcode) || /雨か雪|みぞれ|雨 (後|のち) 雪|雨 .*から 雪|雨 (夜|夕方|夜遅く|昼過ぎ|未明|明け方)( は)? 雪/.test(wj)) {
         const ts = modelTemps(ctx, seg, ws, we);
-        if (!ts || ts.some(t => t >= -1 && t <= 2)) fcHit('O4', 'O4', 'orange', '结冰', { sc, rd, noT: !ts });
+        if (!ts || ts.some(t => t >= -1 && t <= 2)) { const c = jmaSlotSnow(ctx, seg, ws, we, true); if (c) fcHit('O4', 'O4', 'orange', '结冰', { sc, rd, noT: !ts }); else noConf('雨雪转换', c); }
       }
       continue;
     }
@@ -960,11 +1066,11 @@ function evalWindow(ctx, route, seg, ds, offset) {
     const src = `气象厅天气预报，${fmtMD(h.mk.rd)} 发布`;
     let tpl, sh;
     if (key === 'K1f') { tpl = a => `气象厅预报 ${a}：${h.mk.zh}（写到猛烈吹雪）。`; sh = a => `${a}预报写到猛烈吹雪`; }
-    else if (key.startsWith('X2|')) { tpl = a => `气象厅预报 ${a}：${h.mk.zh}（写到暴风雪）。`; sh = a => `${a}预报写到暴风雪`; }
-    else if (key.startsWith('X1|')) { tpl = a => `气象厅预报 ${a}：${h.mk.zh}。`; sh = a => `${a}预报${h.mk.storm}`; }
+    else if (key.startsWith('X2|')) { tpl = a => `气象厅预报 ${a}：${h.mk.zh}（写到暴风雪）。预报文字不分时段，最多判橙。`; sh = a => `${a}预报写到暴风雪`; }
+    else if (key.startsWith('X1|')) { tpl = a => `气象厅预报 ${a}：${h.mk.zh}。${h.mk.conf ? '这句没写时段，地域时序预报或危险度时间序列在这个时段也有雪。' : ''}`; sh = a => `${a}预报${h.mk.storm}`; }
     else if (key === 'K1w') { tpl = a => `气象厅预报 ${a}：陆上风非常强（平均 20 m/s 以上），并且和雪在同一段时间。`; sh = a => `${a}预报风非常强并有雪`; }
     else if (key === 'R2w') { tpl = a => `气象厅预报 ${a}：陆上风强（平均 15 m/s 以上），并且和雪在同一段时间。`; sh = a => `${a}预报风强并有雪`; }
-    else if (key.startsWith('O1w')) { tpl = a => `气象厅预报 ${a}：陆上风${h.mk.split ? '强' : '稍强（平均 10–15 m/s）'}，并且有雪${h.mk.split ? '；不过按预报的先后，强风和雪不在同一段时间，所以只判橙' : ''}。`; sh = a => `${a}预报风${h.mk.split ? '强' : '稍强'}并有雪`; }
+    else if (key.startsWith('O1w')) { tpl = a => `气象厅预报 ${a}：陆上风${h.mk.split ? '强' : '稍强（平均 10–15 m/s）'}，并且有雪${h.mk.split ? '；不过按预报的先后，强风和雪不在同一段时间，所以只判橙' : ''}${h.mk.conf ? '；这句没写时段，地域时序预报或危险度时间序列在这个时段也有雪' : ''}。`; sh = a => `${a}预报风${h.mk.split ? '强' : '稍强'}并有雪`; }
     else if (key === 'Wv') { tpl = a => `气象厅预报 ${a}：陆上风非常强（平均 20 m/s 以上），但这段时间没有雪。只有风时本页最多判橙。`; sh = a => `${a}预报风非常强（没有雪）`; }
     else { tpl = a => `气象厅预报 ${a}：雨雪转换（雨夹雪，或先雨后雪）${h.mk.noT ? '' : '，这段时间气温在 −1～2 ℃ 之间'}，路面容易结冰。`; sh = a => `${a}预报雨雪转换`; }
     const areaTxt = list => list.join('、') + '地区';
@@ -1219,16 +1325,50 @@ function evalWindow(ctx, route, seg, ds, offset) {
       (seg.bandPts ? snowSigns(ctx, seg, ds, bandS0, we) : winSnow).filter(x => /^气象厅/.test(x)).forEach(x => bandSig.add(x));
       const cmR = v => `约 ${Math.round(v)}–${Math.round(v * 1.6)} cm 雪`;   // 札幌、岩见泽实测大雪时每毫米降水积 1.0–1.6 cm
       const amt = `MSM 算出${top.pn}附近格点到 ${top.hh} 时为止 3 小时降水 ${f1(top.v3)} mm（${cmR(top.v3)}）${top.v6 != null ? `、6 小时 ${f1(top.v6)} mm（${cmR(top.v6)}）` : ''}（只算 0.5 ℃ 以下；取数时间窗是${winTxt}）`;
-      const src = 'Open-Meteo 提供的模式格点数值（MSM）', short = `${top.pn}附近格点 3 小时降水 ${f1(top.v3)} mm（雪带）`;
+      // 2026-11-28 定：写出量对红线（不写百分比），以及最近几轮各自的量（data/latest/band_history.json）
+      bandOut = { v3: Math.round(top.v3 * 10) / 10, v6: top.v6 != null ? Math.round(top.v6 * 10) / 10 : null, pn: top.pn };
+      const by6 = top.v6 != null && top.v6 / BAND_RED.h6 > top.v3 / BAND_RED.h3;
+      const vsLine = by6 ? `6 小时 ${f1(top.v6)} mm（红线 ${BAND_RED.h6} mm）` : `3 小时 ${f1(top.v3)} mm（红线 ${BAND_RED.h3} mm）`;
+      const prev = bandHistFor(ctx, bandKey(route, seg, ds), ctx.msmInit);
+      let histTxt = '', histShort = '';
+      if (prev.length) {
+        const all = prev.concat([{ init: ctx.msmInit, v3: top.v3, v6: top.v6 }]);
+        const n = all.filter(x => bandOver(x.v3, x.v6)).length, nowOver = bandOver(top.v3, top.v6);
+        const tail = nowOver && n === 1 ? '，雪带是这一轮新出现的' : (!nowOver && n > 0 ? '，之前越过线，最新一轮在线下' : '');
+        histTxt = `最近几轮 MSM（按起算时刻）的 3 小时最大值：${all.map((x, i) => `${runLabel(x.init)} ${f1(x.v3)} mm${x.v3 < BAND_RED.h3 && x.v6 != null && x.v6 >= BAND_RED.h6 ? `（6 小时 ${f1(x.v6)} mm）` : ''}${i === all.length - 1 ? '（最新）' : ''}`).join(' · ')}；${all.length} 轮里 ${n} 轮越线${tail}。`;
+        histShort = `，最近 ${all.length} 轮 ${n} 轮越线${nowOver && n === 1 ? '（新出现）' : ''}`;
+      }
+      const src = 'Open-Meteo 提供的模式格点数值（MSM）', short = `${top.pn}附近格点 ${vsLine}（雪带${histShort}）`;
       if (red || (org && !seg.bandNoOrg)) {   // 2026-11-28：出了雪带依据才加表（机场线道央道段只到预警线时不出依据，见下）。依据表原来只列本时段的几个小时，雪带算到的时刻常在时段之前，表里全是 0；这里把算到的那 6 小时（或 3 小时）单列在最前面
         const s = ctx.om.msm.series[top.pid], a = top.t - (top.v6 != null ? 6 : 3) * H;
         const hl = t => (t <= msAt(ds, 0) ? '前一天 ' + (jp(t).h || 24) : pad(hourLabel(t, ds)));
         const rows = []; for (let i = 0; i < s.t.length; i++) if (s.t[i] > a && s.t[i] <= top.t) rows.push({ h: hl(s.t[i]), w: s.W[i], g: s.G[i], sn: s.S[i], rn: s.R[i], t: s.T[i] });
         if (rows.length) raw.unshift({ pid: 'band', model: 'MSM（日本气象厅中尺度模式）', point: `${top.pn}附近的陆地格点：雪带算到的那几个小时（北纬 ${f2(s.lat)}°，东经 ${f2(s.lon)}°）`, rows });
       }
-      if (red && bandSig.size) add(mkReason('red', 'R8', `雪带：${amt}，达到 3 小时 7 mm 或 6 小时 10 mm；气象厅这时也有雪的信号（${[...bandSig].join('、')}）。这种宽二三十公里的雪带，风不大也会让道央道封路（2026-11-25 江别东 IC—美呗 IC 那次就是）。`, src, short, { dk: 'model|band', model: true, rt: '大雪' }));
-      else if (red) add(mkReason('orange', 'O9', `雪带：${amt}，达到红线，但气象厅这时没有雪的信号，所以判橙。`, src, short + '，气象厅没有雪的信号', { dk: 'model|band', model: true, rt: '大雪' }));
-      else if (org && !seg.bandNoOrg) add(mkReason('orange', 'O9', `雪带预警：${amt}，达到 3 小时 4.5 mm 或 6 小时 6 mm。窄雪带前一天能报出“这一带可能有”，报不准落在哪几公里，当天早上要看实况。`, src, short, { dk: 'model|band', model: true, rt: '大雪' }));
+      if (red && bandSig.size) add(mkReason('red', 'R8', `雪带：${amt}，达到 3 小时 7 mm 或 6 小时 10 mm 的红线；气象厅这时也有雪的信号（${[...bandSig].join('、')}）。这种宽二三十公里的雪带，风不大也会让道央道封路（2026-11-25 江别东 IC—美呗 IC 那次就是）。${histTxt}`, src, short, { dk: 'model|band', model: true, rt: '大雪' }));
+      else if (red) add(mkReason('orange', 'O9', `雪带：${amt}，达到红线，但气象厅这时没有雪的信号，所以判橙。${histTxt}`, src, short + '，气象厅没有雪的信号', { dk: 'model|band', model: true, rt: '大雪' }));
+      else if (org && !seg.bandNoOrg) add(mkReason('orange', 'O9', `雪带预警：${amt}，达到 3 小时 4.5 mm 或 6 小时 6 mm 的橙线（红线是 3 小时 7 mm 或 6 小时 10 mm）。窄雪带前一天能报出“这一带可能有”，报不准落在哪几公里，当天早上要看实况。${histTxt}`, src, short, { dk: 'model|band', model: true, rt: '大雪' }));
+    }
+  }
+
+  /* 6e. 第 4～6 天的雪带（R8f、O9f；2026-11-28 M 定）：和前 3 天同一个标准，同一种颜色代表同样的危险程度。MSM 算不到这么远，
+   * 改看两家全球模式（ECMWF 的 0.25 度版、气象厅 GSM），两家都达到才亮；判红还要气象厅一周预报这天写了雪，没写降为橙（和 R8 一样）。
+   * 只用于一日游的去程、回程高速：回测的标签是道央道札幌—旭川段有没有封路。 */
+  if (route.id === 'A' && seg.bandPts && offset >= 3 && offset <= 5) {
+    const e = farP24(ctx.far.ifs025, ds), g = farP24(ctx.far.gsm, ds);
+    if (e == null || g == null) missing.push(e == null ? 'ECMWF（0.25 度版）模式' : 'GSM 模式');
+    else {
+      const red = e > FAR_BAND.red.e && g > FAR_BAND.red.g, org = e > FAR_BAND.org.e && g > FAR_BAND.org.g;
+      const vals = `ECMWF 算出 ${f1(e)} mm（红线 ${FAR_BAND.red.e}、橙线 ${FAR_BAND.org.e} mm），GSM ${f1(g)} mm（红线 ${FAR_BAND.red.g}、橙线 ${FAR_BAND.org.g} mm）`;
+      const what = `第 4～6 天的雪带信号：取沿线 9 个点（札幌到深川）里最多的一点，这天全天 0.5 ℃ 以下的降水合计，${vals}`;
+      const why = '全球模式一格二三十到五十多公里，峰值被摊平，这些数只能当排名用，不是实际雪量；门槛按 176 天回测定，同一种颜色和前 3 天的封路比例相当。进入前 3 天后改看 MSM。';
+      const src = 'Open-Meteo 提供的 ECMWF（0.25 度版）和气象厅 GSM 格点数值';
+      const shortV = `两家全球模式都报雪多（ECMWF ${f1(e)}、GSM ${f1(g)} mm）`;
+      const wk = farWeekSnow(ctx, ds);
+      if (red && wk && wk.snow) add(mkReason('red', 'R8f', `${what}，两家都过红线；气象厅一周预报这天也有雪（${wk.zh}）。回测里这样的日子约七成封过路。${why}`, src, shortV, { dk: 'far|band', model: true, rt: '大雪', allowFar: true }));
+      else if (red) add(mkReason('orange', 'O9f', `${what}，两家都过红线，但气象厅一周预报这天${wk ? `没写雪（${wk.zh}）` : '没取到'}，所以判橙。${why}`, src, shortV + '，一周预报没写雪', { dk: 'far|band', model: true, rt: '大雪' }));
+      else if (org) add(mkReason('orange', 'O9f', `${what}，两家都过橙线。回测里这样的日子约四成封过路。${why}`, src, shortV, { dk: 'far|band', model: true, rt: '大雪' }));
+      else if (e > FAR_BAND.org.e || g > FAR_BAND.org.g) notes.push({ key: 'far1|' + ds, text: `第 4～6 天的雪带信号：只有一家全球模式报雪多（${vals}），两家没有同时到线，按规则不亮。` });
     }
   }
 
@@ -1385,7 +1525,7 @@ function evalWindow(ctx, route, seg, ds, offset) {
   }
   if (level === 'gray' && !reasons.some(r => r.level === 'gray')) reasons.unshift(mkReason('gray', 'miss', `缺少数据：${uniqMissing.join('、')}，所以不能给绿色。`, ''));
   const out = reasons.map(r => (r.rt && RANK[r.level] >= RANK.orange && !/^［/.test(r.text) ? Object.assign({}, r, { text: `［${r.rt}］${r.text}` }) : r));
-  return { past: false, level, reasons: out, missing: uniqMissing, notes, raw: raw.map(({ pid, ...r }) => r) };
+  return { past: false, level, reasons: out, missing: uniqMissing, notes, raw: raw.map(({ pid, ...r }) => r), band: bandOut };
 }
 
 /* 集合预报按天计数：每个成员在这一天任一时次“风速 ≥ 14 m/s 且降雪 > 0”算 1 个（nR）；“≥ 8 m/s 且降雪 > 0”算 nO */
@@ -1533,7 +1673,7 @@ function buildRouteDays(ctx, route) {
     if (route.kind === 'timeline') {
       day.segments = route.segments.map(seg => {
         const r = evalWindow(ctx, route, seg, ds, k);
-        return Object.assign({ id: seg.id, name: seg.name, time: seg.time, places: seg.places }, { level: r.level, reasons: r.reasons, raw: r.raw, past: r.past, _past: r.past, _missing: r.missing, _notes: r.notes });
+        return Object.assign({ id: seg.id, name: seg.name, time: seg.time, places: seg.places }, { level: r.level, reasons: r.reasons, raw: r.raw, past: r.past, band: r.band || null, _past: r.past, _missing: r.missing, _notes: r.notes });
       });
       const live = day.segments.filter(s => !s._past);
       if (!live.length) { level = 'gray'; day.past = true; reasons = [mkReason('gray', 'past', '今天一日游的时段已经过去，请看明天及之后的日子。', '')]; day.headline = '今天的行程时段已过。'; }
@@ -1554,7 +1694,7 @@ function buildRouteDays(ctx, route) {
       const cells = route.rows.map(row => route.cols.map(([a, b]) => {
         const seg = Object.assign({}, row, { h0: a, h1: b });
         const r = evalWindow(ctx, route, seg, ds, k);
-        return { level: r.level, reasons: r.reasons, raw: r.raw, past: r.past, _past: r.past, _missing: r.missing, _notes: r.notes, _row: row.name, _col: `${pad(a)}–${pad(b)}` };
+        return { level: r.level, reasons: r.reasons, raw: r.raw, past: r.past, band: r.band || null, _past: r.past, _missing: r.missing, _notes: r.notes, _row: row.name, _col: `${pad(a)}–${pad(b)}` };
       }));
       // 高速封闭的解除一般要等除雪、巡查结束：红格之后的一格至少是橙
       cells.forEach(row => row.forEach((c, ci) => {
@@ -1640,6 +1780,10 @@ function buildView(raw, now) {
     if (r && r.ok && Array.isArray(r.data)) { const series = {}; PTS.forEach((p, i) => { series[p.id] = withQ(r.data[i]); }); ctx.om[mk] = { ok: true, series }; }
     else ctx.om[mk] = { ok: false };
   }
+  ctx.far = {};
+  for (const mk of ['ifs025', 'gsm']) { const r = raw[mk]; ctx.far[mk] = r && r.ok && Array.isArray(r.data) && r.data.length === FAR_PTS.length ? { ok: true, data: r.data } : { ok: false }; }
+  ctx.msmInit = raw.meta_msm && raw.meta_msm.ok && raw.meta_msm.data ? raw.meta_msm.data.init : null;
+  ctx.bandHist = raw.bandhist && raw.bandhist.ok ? raw.bandhist.data : null;
   ctx.ens = raw.ens && raw.ens.ok ? { ok: true, counts: ensCounts(raw.ens.data) } : { ok: false };
   ctx.obs = obsCtx(raw.obs, now);
 
@@ -1689,6 +1833,15 @@ function buildView(raw, now) {
     const init = initOf(mk), st = ctx.stale[mk];
     sources.push(srcStatus(name, st ? 'stale' : 'ok', null, init ? `这一轮的起算时刻是 ${fmtMD(init)}${st ? `，超过 ${lim} 小时，用到它的时段不显示绿色` : ''}。` : '没取到这一轮的起算时刻，无法确认新旧，按偏旧处理。'));
   }
+  for (const [mk, name] of [['ifs025', 'Open-Meteo：ECMWF IFS 0.25 度版（第 4～6 天的雪带用）'], ['gsm', 'Open-Meteo：日本气象厅 GSM 全球模式（第 4～6 天的雪带用）']]) {
+    const r = raw[mk];
+    if (!r) sources.push(srcStatus(name, 'loading'));
+    else if (!r.ok) sources.push(srcStatus(name, 'error', null, r.err + '（一日游第 4～6 天的去程、回程高速因此不显示绿色）'));
+    else sources.push(srcStatus(name, 'ok', null, '沿线 9 个点，只用于一日游第 4～6 天的去程、回程高速。'));
+  }
+  if (!raw.bandhist) sources.push(srcStatus('本站存档：雪带最近几轮', 'loading'));
+  else if (!raw.bandhist.ok) sources.push(srcStatus('本站存档：雪带最近几轮', 'error', null, raw.bandhist.err + '（只少了雪带依据里“最近几轮”那一句，不影响判级）'));
+  else { const rs = raw.bandhist.data; sources.push(srcStatus('本站存档：雪带最近几轮', 'ok', null, rs.length ? `GitHub 上每 3 小时用本页同一个程序算一次存下，现有 ${rs.length} 轮，最新一轮起算于 ${fmtMD(rs[rs.length - 1].init)}。` : '还没有存下的轮次。')); }
   const ensN = ctx.ens.ok ? Math.max(0, ...ctx.ens.counts.filter(Boolean).map(d => Math.max(0, ...Object.values(d).map(x => x.n || 0)))) : 0;
   if (!raw.ens) sources.push(srcStatus('Open-Meteo：ECMWF 集合预报', 'loading'));
   else sources.push(raw.ens.ok ? srcStatus('Open-Meteo：ECMWF 集合预报', 'ok', null, `${ensN} 个成员，用于第 4 天起。`) : srcStatus('Open-Meteo：ECMWF 集合预报', 'error', null, raw.ens.err));
@@ -1840,19 +1993,20 @@ const RULES_TEXT = [
   '等级有五种。⬛ 交通瘫痪：基本动不了，大面积封路、停运；只用于札幌、小樽、千岁（新千岁机场）一线，即机场线两段和一日游的去程、回程高速。🔴 不宜出行：这段路这个时段可能封高速，或让札幌市区大面积堵车。🟠 要注意：能走，但会明显变慢，要有预案。🟢 没有触发任何规则：只说明下面这些数据没有超过门槛，不等于安全。⬜ 无法判定：缺数据或数据太旧，所以不给绿色。橙色以上的每条依据都标明风险类型：吹雪（视线差）、大雪（雪深、除雪跟不上）、结冰（雨后或融雪后降温）、其他（雪崩、着雪、封闭解除滞后等）；只有风的标“只有风”。',
   '本页只看天气。高速、国道有没有封闭，有没有预防性封路或夜间排雪封闭的预告，JR 有没有减班、末班提前或停运，本页都看不到；这些请看页面下方“道路信息”“铁路”里的官方入口；航班会不会停飞看“航班运行提示”里的机场和航空公司官网。',
   '每条路线按固定时段判定。一日游分四段：去程高速 09–11 时、旭川—美瑛—白金 11–17 时、回程山路 17–19 时、回程高速 19–20 时。机场线分札樽道段和道央道段，各按 06–09、09–12、12–15、15–18、18–21、21–24 时判定，00–06 时不判定。当天的等级取各段（各格）里最严重的一个。',
-  '总的原则：北海道冬天下雪是常态，不因为下雪就判不宜出行。判红、判黑必须有本段、本时段的证据；整片地区的信号（早期注意信息、不分时段的预报文字）单独出现时最多判橙。只有风、没有雪不计等级，写进提醒（平均风 18 m/s、没有雪也不判红）；只有预报写陆上风“非常に強く”（平均 20 m/s 以上）或有暴风警报时判橙，类型写“只有风”。第 4 天起最高判橙（早期注意信息“高”加模式佐证的例外见下），写“可能升级”。',
-  '下面说到的词：早期注意信息（日文：早期注意情報）是气象厅对今后 5 天内出现警报级天气的可能性给出的“高”“中”；注意报（日文：注意報）是比警报低一级的提醒；危险度时间序列是气象厅按 3 小时一格、到市町给出的风、雪预报值和达到注意报、警报标准的时段，是预报员订正过的数；地域时序预报（日文：地域時系列予報）是气象厅按细分地区、3 小时一格给出的天气和风速范围；气象解说信息（日文：気象解説情報）是气象台在大雪、暴风雪过程前后发布的说明；MSM 是日本气象厅的中尺度模式（约 5 公里一格，算到约 78 小时后）；ECMWF 是欧洲中期天气预报中心，IFS 是它的全球模式；集合预报是同一个模式用略有不同的初始条件算 51 遍。风力等级按蒲福风级：5 级 8.0–10.7 m/s，6 级 10.8–13.8 m/s，7 级 13.9–17.1 m/s。',
+  '总的原则：北海道冬天下雪是常态，不因为下雪就判不宜出行。判红、判黑必须有本段、本时段的证据；整片地区的信号（早期注意信息、不分时段的预报文字）单独出现时最多判橙。只有风、没有雪不计等级，写进提醒（平均风 18 m/s、没有雪也不判红）；只有预报写陆上风“非常に強く”（平均 20 m/s 以上）或有暴风警报时判橙，类型写“只有风”。第 4 天起最高判橙（例外两个，都见下：早期注意信息“高”加模式佐证；一日游高速段的雪带，第 4～6 天按同样的危险程度判红、橙），写“可能升级”。',
+  '下面说到的词：早期注意信息（日文：早期注意情報）是气象厅对今后 5 天内出现警报级天气的可能性给出的“高”“中”；注意报（日文：注意報）是比警报低一级的提醒；危险度时间序列是气象厅按 3 小时一格、到市町给出的风、雪预报值和达到注意报、警报标准的时段，是预报员订正过的数；地域时序预报（日文：地域時系列予報）是气象厅按细分地区、3 小时一格给出的天气和风速范围；气象解说信息（日文：気象解説情報）是气象台在大雪、暴风雪过程前后发布的说明；MSM 是日本气象厅的中尺度模式（约 5 公里一格，算到约 78 小时后）；ECMWF 是欧洲中期天气预报中心，IFS 是它的全球模式；GSM 是日本气象厅的全球模式；集合预报是同一个模式用略有不同的初始条件算 51 遍。风力等级按蒲福风级：5 级 8.0–10.7 m/s，6 级 10.8–13.8 m/s，7 级 13.9–17.1 m/s。',
   '⬛ 交通瘫痪（只用于札幌、小樽、千岁一线）：① 预报文字写本段地区陆上风“非常に強く”（平均 20 m/s 以上）并且和雪在同一段时间，或写到“猛ふぶき”（猛烈吹雪）；或地域时序预报的风速范围下限 20 m/s 以上并且天气是雪。② 大雪特别警报、暴风雪特别警报。③ 机场线前一个时段是⬛，这个时段至少判🔴（高速封闭要等 NEXCO 公告解除）。早期注意信息“高”或大雪警报，加上 MSM 在机场线 12 小时降水 30 mm 或 24 小时 35 mm 以上（0 ℃ 以下）时，本页只判🔴并写“可能升到⬛”：还要核对气象厅写的 24 小时预想降雪量，本页没有读这一项。',
-  '🔴 不宜出行：① 本段沿线的市、町现在有暴风雪警报或大雪警报（只算今天）；危险度时间序列在本段时段内雪达到警报标准，或风达到警报标准并且有雪。② 风加雪，红线 14 m/s，只用气象厅订正过的数：危险度时间序列的最大风速 14 m/s 以上，同一格或相邻一格 6 小时降雪 3 cm 以上，气温 0 ℃ 以下；或地域时序预报的风速范围下限 15 m/s 以上并且天气是雪；或预报文字本段地区陆上风“強く”（平均 15 m/s 以上）并且和雪在同一段时间（“海上 では”不算）。③ 推定视程（见下）不到 200 m，并且气象厅对本段、本时段有信号：大雪、风雪注意报或大雪、暴风雪警报，危险度时间序列本格或前后一格达到注意报标准，早期注意信息“高”，或气象解说信息点名本段地区、本时段的大雪或吹雪；没有这些信号的降为🟠。④ 雪量：危险度时间序列的 6 小时降雪相加，札幌、江别、北广岛、惠庭、千岁 6 小时 20 cm、12 小时 30 cm 或 24 小时 40 cm 以上；小樽、岩见泽、美呗、砂川、泷川、深川、芦别、三笠 12 小时 40 cm 或 24 小时 50 cm 以上；旭川、美瑛、富良野、上富良野、东川 12 小时 40 cm 以上；或 MSM 在本段格点 0 ℃ 以下的降水 12 小时 22 mm 或 24 小时 28 mm 以上。⑤ 气象解说信息对本段地区、本时段的大雪、暴风雪、吹雪、吹积或它们造成的交通受阻要求“警戒”。⑥ 早期注意信息“高”，并且本段有橙色一级的佐证（风加雪、雪量或注意报）。',
-  '🟠 要注意：① 吹雪：推定视程不到 500 m；危险度时间序列或模式显示高速平均风 8 m/s 以上并有雪（湿雪也算），回程山路、美瑛一段 10 m/s 以上并有雪；地域时序预报风速“10–14 m/s”并且天气是雪；预报文字陆上风“やや強く”（稍强，10–15 m/s）并且有雪；风雪注意报生效。② 雪量：札幌一线 12 小时 20 cm 或 24 小时 25 cm 以上，小樽和空知各市 12 小时 30 cm 以上，上川各市町 12 小时 25 cm 以上，回程山路 12 小时 20 cm 以上（都按危险度时间序列的 6 小时降雪相加）；MSM 12 小时 0 ℃ 以下的降水 15 mm 以上；大雪、着雪注意报生效，或危险度时间序列雪、着雪达到注意报标准；回程山路另算雪崩注意报。③ 结冰：之前 48 小时降雨 5 mm 以上、之后降到 −3 ℃ 以下，或雨停后 12 小时内的夜间到清晨降到 0 ℃ 以下、并且路面有水（这场雨 3 mm 以上，或当天沿线 AMeDAS 积雪化掉 5 cm 以上）；从降到冰点起到第二天 10 时判橙，之后只在 18 时到次日 9 时继续判橙，直到白天回到 3 ℃ 以上，或又下了 5 cm 以上的新雪。④ 雨雪转换：预报写“雨後雪”“雨か雪”“みぞれ”，或地域时序预报写“雨または雪”，并且这段时间气温在 −1～2 ℃。⑤ 早期注意信息“中”（风一项要本段有雪，并且预报的风有“やや強く”以上，或本段风雪到了橙线）。⑥ 气象解说信息对本段要求“注意”“充分注意”；回程山路另算雪崩。⑦ 回程山路（17–19 时天黑、没有备用路）：模式算出有雪并且气温 −3 ℃ 以下。⑧ 本来够红、但只来自一个模式而气象厅和另一个模式都不支持，或推定视程不到 200 m 但气象厅没有对应信号，或落在第 4 天以后：降为橙。⑨ 机场线前一个时段不宜出行（封闭解除常比天气好转晚）。',
-  '雪带和当天实况（2026-11-25 加，用于一日游的去程、回程高速；2026-11-27 起雪带也用于机场线的道央道段；看的是降水毫米数，不是风）：🔴 ⑦ 雪带：MSM 在道央道沿线格点任一个，0.5 ℃ 以下的降水 3 小时合计 7 mm（大约积雪 7–11 cm）或 6 小时合计 10 mm 以上，并且气象厅在同一段时间里有雪的信号（危险度时间序列雪达到注意报标准，大雪、风雪注意报或警报，或预报写这时有雪；早期注意信息的“中”不算）；没有雪的信号降为🟠。取数的时间窗：去程看前一天 18 时到当天 11 时，回程看当天 05–20 时，因为封路常常是前一晚或凌晨的雪带造成、一直封到上午的。去程看札幌、江别东 IC、江别东 IC 与岩见泽 IC 之间、岩见泽、三笠 IC、美呗 IC、奈井江砂川 IC、砂川与泷川之间、深川九个格点，回程只看三笠 IC 到札幌这五个。🟠 ⑩ 雪带预警：同样的格点 3 小时 4.5 mm 或 6 小时 6 mm 以上。🔴 ⑧ 当天实况：只用于今天、开始时刻在最新观测之后 8 小时以内的高速时段。沿线 AMeDAS（去程：札幌、江别、岩见泽、美呗、泷川、深川；回程：札幌、江别、岩见泽）任一站过去 3 小时降水 5 mm 以上，并且这 3 小时气温都在 0.5 ℃ 以下；或过去 3 小时降雪 6 cm 以上，并且岩见泽或札幌最近 1 小时的 10 分钟视程有 2 次以上不到 500 m。只有降雪 6 cm 以上判🟠（⑪）。实况优先：今天已经开始或 3 小时内开始的时段，如果沿线 AMeDAS 都是 1 ℃ 以上的雨或没下、风不到 8 m/s，MSM 接下来 3 小时也不转雪，危险度时间序列报的雪、风雪和着雪注意报就不计等级。为什么看毫米数：2026-11-25 道央道江别东 IC—美呗 IC 封路时，岩见泽平均风只有 2–8 m/s，雪带宽二三十公里，按风和推定视程的规则都只到橙；按厘米数算，札幌一冬有二十天 3 小时降雪 8 cm 以上，按毫米数算 3 小时 6 mm 以上只有十三天，其中九天附近的高速封了路。门槛和时间窗是用 2025–26 冬季加 2026 年 11 月逐日核对过封路的 176 天回测定的（前一天的 MSM 达到这条门槛的 32 天里，21 天道央道札幌—旭川段封了路；没达到的 144 天里只有 11 天封路），数据、脚本和结果公开在 GitHub 仓库 SHIELD-CAP/hokkaido-winter-route。',
+  '🔴 不宜出行：① 本段沿线的市、町现在有暴风雪警报或大雪警报（只算今天；按危险度时间序列看它管哪几个小时，本时段不在里面的不计等级、写进提醒，时间序列认不出时按“目前有效”算）；危险度时间序列在本段时段内雪达到警报标准，或风达到警报标准并且有雪。② 风加雪，红线 14 m/s，只用气象厅订正过的数：危险度时间序列的最大风速 14 m/s 以上，同一格或相邻一格 6 小时降雪 3 cm 以上，气温 0 ℃ 以下；或地域时序预报的风速范围下限 15 m/s 以上并且天气是雪；或预报文字本段地区陆上风“強く”（平均 15 m/s 以上）并且和雪在同一段时间（“海上 では”不算）。③ 推定视程（见下）不到 200 m，并且气象厅对本段、本时段有信号：大雪、风雪注意报或大雪、暴风雪警报，危险度时间序列本格或前后一格达到注意报标准，早期注意信息“高”，或气象解说信息点名本段地区、本时段的大雪或吹雪；没有这些信号的降为🟠。④ 雪量：危险度时间序列的 6 小时降雪相加，札幌、江别、北广岛、惠庭、千岁 6 小时 20 cm、12 小时 30 cm 或 24 小时 40 cm 以上；小樽、岩见泽、美呗、砂川、泷川、深川、芦别、三笠 12 小时 40 cm 或 24 小时 50 cm 以上；旭川、美瑛、富良野、上富良野、东川 12 小时 40 cm 以上；或 MSM 在本段格点 0 ℃ 以下的降水 12 小时 22 mm 或 24 小时 28 mm 以上。⑤ 气象解说信息对本段地区、本时段的大雪、暴风雪、吹雪、吹积或它们造成的交通受阻要求“警戒”。⑥ 早期注意信息“高”，并且本段有橙色一级的佐证（风加雪、雪量或注意报）。',
+  '🟠 要注意：① 吹雪：推定视程不到 500 m；危险度时间序列或模式显示高速平均风 8 m/s 以上并有雪（湿雪也算），回程山路、美瑛一段 10 m/s 以上并有雪；地域时序预报风速“10–14 m/s”并且天气是雪；预报文字陆上风“やや強く”（稍强，10–15 m/s）并且有雪，或预报写“ふぶく”“吹雪”，或写到“暴風雪”（预报文字不分时段，写到暴风雪也最多判橙；“やや強く”“ふぶく”还要地域时序预报或危险度时间序列同一时段也有雪，否则只写进提醒）；风雪注意报管着本时段（看法同🔴①）。② 雪量：札幌一线 12 小时 20 cm 或 24 小时 25 cm 以上，小樽和空知各市 12 小时 30 cm 以上，上川各市町 12 小时 25 cm 以上，回程山路 12 小时 20 cm 以上（都按危险度时间序列的 6 小时降雪相加）；MSM 12 小时 0 ℃ 以下的降水 15 mm 以上；大雪、着雪注意报管着本时段（看法同🔴①），或危险度时间序列雪、着雪达到注意报标准；回程山路另算雪崩注意报。③ 结冰：之前 48 小时降雨 5 mm 以上、之后降到 −3 ℃ 以下，或雨停后 12 小时内的夜间到清晨降到 0 ℃ 以下、并且路面有水（这场雨 3 mm 以上，或当天沿线 AMeDAS 积雪化掉 5 cm 以上）；从降到冰点起到第二天 10 时判橙，之后只在 18 时到次日 9 时继续判橙，直到白天回到 3 ℃ 以上，或又下了 5 cm 以上的新雪。④ 雨雪转换：预报写“雨後雪”“雨か雪”“みぞれ”，或地域时序预报写“雨または雪”，并且这段时间气温在 −1～2 ℃；预报文字这一条还要地域时序预报或危险度时间序列同一时段也有雪（雨夹雪也算）。⑤ 早期注意信息“中”（风一项要本段有雪，并且预报的风有“やや強く”以上，或本段风雪到了橙线）。⑥ 气象解说信息对本段要求“注意”“充分注意”；回程山路另算雪崩。⑦ 回程山路（17–19 时天黑、没有备用路）：模式算出有雪并且气温 −3 ℃ 以下。⑧ 本来够红、但只来自一个模式而气象厅和另一个模式都不支持，或推定视程不到 200 m 但气象厅没有对应信号，或落在第 4 天以后：降为橙。⑨ 机场线前一个时段不宜出行（封闭解除常比天气好转晚）。',
+  '雪带和当天实况（2026-11-25 加，用于一日游的去程、回程高速；2026-11-27 起雪带也用于机场线的道央道段；看的是降水毫米数，不是风）：🔴 ⑦ 雪带：MSM 在道央道沿线格点任一个，0.5 ℃ 以下的降水 3 小时合计 7 mm（大约积雪 7–11 cm）或 6 小时合计 10 mm 以上，并且气象厅在同一段时间里有雪的信号（危险度时间序列雪达到注意报标准，大雪、风雪注意报或警报，或预报写这时有雪；早期注意信息的“中”不算）；没有雪的信号降为🟠。取数的时间窗：去程看前一天 18 时到当天 11 时，回程看当天 05–20 时，因为封路常常是前一晚或凌晨的雪带造成、一直封到上午的。去程看札幌、江别东 IC、江别东 IC 与岩见泽 IC 之间、岩见泽、三笠 IC、美呗 IC、奈井江砂川 IC、砂川与泷川之间、深川九个格点，回程只看三笠 IC 到札幌这五个。🟠 ⑩ 雪带预警：同样的格点 3 小时 4.5 mm 或 6 小时 6 mm 以上。雪带的依据写出量和红线，以及最近几轮 MSM 各自的量和几轮越线（GitHub 上每 3 小时用本页同一个程序算一次存下）；判红、判橙只看最新一轮。🔴 ⑧ 当天实况：只用于今天、开始时刻在最新观测之后 8 小时以内的高速时段。沿线 AMeDAS（去程：札幌、江别、岩见泽、美呗、泷川、深川；回程：札幌、江别、岩见泽）任一站过去 3 小时降水 5 mm 以上，并且这 3 小时气温都在 0.5 ℃ 以下；或过去 3 小时降雪 6 cm 以上，并且岩见泽或札幌最近 1 小时的 10 分钟视程有 2 次以上不到 500 m。只有降雪 6 cm 以上判🟠（⑪）。实况优先：今天已经开始或 3 小时内开始的时段，如果沿线 AMeDAS 都是 1 ℃ 以上的雨或没下、风不到 8 m/s，MSM 接下来 3 小时也不转雪，危险度时间序列报的雪、风雪和着雪注意报就不计等级。为什么看毫米数：2026-11-25 道央道江别东 IC—美呗 IC 封路时，岩见泽平均风只有 2–8 m/s，雪带宽二三十公里，按风和推定视程的规则都只到橙；按厘米数算，札幌一冬有二十天 3 小时降雪 8 cm 以上，按毫米数算 3 小时 6 mm 以上只有十三天，其中九天附近的高速封了路。门槛和时间窗是用 2025–26 冬季加 2026 年 11 月逐日核对过封路的 176 天回测定的（前一天的 MSM 达到这条门槛的 32 天里，21 天道央道札幌—旭川段封了路；没达到的 144 天里只有 11 天封路），数据、脚本和结果公开在 GitHub 仓库 SHIELD-CAP/hokkaido-winter-route。',
   '机场线的雪带（2026-11-27 加，按机场线单独回测）：道央道段（札幌—新千岁机场）也用雪带红线，看札幌、北广岛、惠庭、新千岁机场四个格点，取数时间窗是本时段和之前 6 小时；达到 3 小时 7 mm 或 6 小时 10 mm 并有气象厅雪的信号判🔴，没有雪的信号判🟠，不用 4.5／6 mm 那条预警。札樽道段不用雪带：那里封路主要看风，靠“平均风 8 m/s 以上并有雪”判🟠（吹雪）。回测用同样的 176 天和前一天的 MSM，只算因天气封路（不算事先公告的夜间除雪封闭）：道央道段封路 12 次，这四个点达到红线的 10 天里 5 天当天真封了，12 次接住 6 次；札樽道封路 15 次，雪量门槛只接住 4 次，“风 8 m/s 以上并有雪”接住 11 次，但亮了 40 天、当天真封的只有 12 天，所以只判橙。样本小，数字还会变。',
+  '第 4～6 天的雪带（2026-11-28 加，只用于一日游的去程、回程高速）：MSM 算不到这么远，改看两家全球模式——ECMWF 的 0.25 度版和日本气象厅 GSM（Open-Meteo 给的 GSM 是约 55 公里一格、6 小时一个值）。取沿线 9 个点（札幌到深川）里最多的一点，这天全天 0.5 ℃ 以下的降水合计：两家都过红线（ECMWF 4.8 mm、GSM 4.2 mm）并且气象厅一周预报这天写了雪判🔴，没写雪判🟠；两家都过橙线（ECMWF 3.6 mm、GSM 3.3 mm）判🟠；只有一家过线不亮，写进提醒。全球模式一格二三十到五十多公里，峰值被摊平，前 3 天的毫米门槛它们够不到（176 天里两家同时到 MSM 红线的一天都没有），所以这几个数只能当排名用，不是实际雪量。门槛按 2025–26 冬季加 2026 年 11 月的 176 天回测定，让同一种颜色和前 3 天的封路比例相当：红的日子约七成当天封过路（前 3 天的红是 69%），橙约四成（前 3 天 42%），绿 5%–8%（前 3 天 3%）。门槛是在同样这些天上挑的，结果偏乐观，冬天结束后用新数据再核。',
   '推定视程：用模式的 10 m 风速、每小时降水（1 ℃ 以下才算）、气温，以及“最近一次下雨或融雪之后有没有新雪”，按札幌管区气象台的飞雪流量方法和松泽（2007）的视程经验式，计算小时平均视程。风速乘 0.81 折算到 1.2 m 高是本页自己加的，所以算出的数比原式大一成半左右，不要和别处发布的视程直接比较。200 m、500 m 两条线是用 2025–26 冬季的封路日回测定的；瞬间视程可能低到小时平均的五分之一。',
   '数值模式的数用的是 Open-Meteo 提供的附近陆地格点的计算结果，没有按海拔修正。判雪量一律看降水毫米数加气温，不看换算出的厘米数：Open-Meteo 给 MSM 的降雪按每毫米降水 0.7 cm 换算，札幌实测大雪时每毫米降水常积 1.0–1.6 cm 雪。石狩湾那种局地强降雪带，ECMWF 常常整个漏掉，所以判大雪以 MSM 为主。MSM 只算到约 78 小时后，之后只有 ECMWF。第 4 天起看 ECMWF 集合预报：51 个成员里有多少个在当天算出“14 m/s 以上并有雪”（红线）和“8 m/s 以上并有雪”（橙线）；红线成员有 15 个以上时判橙，其余只写数。',
   '只做提醒、不改变等级的：只讲风的信息（强风注意报，以及早期注意信息、危险度时间序列、地域时序预报、气象解说信息里没有雪的那部分）；只涉及不经过路线的地区，或范围对不上具体地区的部分（例如“日本海側南部”）；一周预报可信度为 C；小樽附近格点的集合预报（这个格点包含大片海面，风速偏大）。',
-  '给绿色要求本段该有的数据都在：今后 5 天内的早期注意信息、气象厅预报（本段经过的每个地区）、至少一个数值模式在本段时段内的完整数据；今后 3 天还要有气象解说信息的列表和相关正文；今天还要有警报、注意报和危险度时间序列；第 4 天起，用到集合预报的段还要有集合预报。缺任一项，或用到的数据太旧，就显示无法判定。地域时序预报不算必需。',
+  '给绿色要求本段该有的数据都在：今后 5 天内的早期注意信息、气象厅预报（本段经过的每个地区）、至少一个数值模式在本段时段内的完整数据；今后 3 天还要有气象解说信息的列表和相关正文；今天还要有警报、注意报和危险度时间序列；第 4 天起，用到集合预报的段还要有集合预报；一日游第 4～6 天的去程、回程高速还要有 ECMWF 0.25 度版和 GSM。缺任一项，或用到的数据太旧，就显示无法判定。地域时序预报不算必需。',
   '雪带地图（2026-11-26 加）：每条路线的“气象厅发布的内容”上方有一张“雪带地图”，一日游画道央道两侧、机场线画小樽—札幌—新千岁机场两侧 20 公里内的 MSM 网格，逐小时播放，按气温把降水换算成降雪厘米数（0 ℃ 以上 0.9 倍，−2～0 ℃ 1.3 倍，−4～−2 ℃ 1.5 倍，−4 ℃ 以下 1.7 倍，取自岩见泽、札幌去冬实测），红框是 3 小时 0.5 ℃ 以下的降水到了 7 mm；机场线那张另有橙框，是那一小时平均风 8 m/s 以上并有雪（0.5 ℃ 以下的降水 0.5 mm 以上）。地图只给人看，不参与判级：回测显示把两侧 10–20 公里也算进雪带规则，每多接住一次封路要多出约 10 天红色。',
-  '本页按“判定规则 v6”的网站版计算（2026-11-25 晚在 v4 上加了雪带和当天实况两条；2026-11-26 改了雪带的取数时间窗和雪的信号、结冰第二款的雨量下限，加了实况优先）。网站版没有做的部分：高速和国道的封闭实况、封路预告和夜间排雪封闭（NEXCO 东日本和国土交通省网站的条款都不许未经同意转载，所以只在“官方信息链接”里放链接），JR 的停运和减班，tenki.jp 的点预报，气象台联合呼吁的正文；AMeDAS 实测只用于当天高速时段的实况一条。规则只看天气，不看事故、施工、冬季封闭等道路本身的情况。出发前一定要看道路信息。'
+  '本页按“判定规则 v6”的网站版计算（2026-11-25 晚在 v4 上加了雪带和当天实况两条；2026-11-26 改了雪带的取数时间窗和雪的信号、结冰第二款的雨量下限，加了实况优先；2026-11-28 晚改了今天警报、注意报的时段，不分时段的预报文字最多判橙并要同一时段的佐证，雪带依据写出红线和最近几轮，加了第 4～6 天的雪带）。网站版没有做的部分：高速和国道的封闭实况、封路预告和夜间排雪封闭（NEXCO 东日本和国土交通省网站的条款都不许未经同意转载，所以只在“官方信息链接”里放链接），JR 的停运和减班，tenki.jp 的点预报，气象台联合呼吁的正文；AMeDAS 实测只用于当天高速时段的实况一条。规则只看天气，不看事故、施工、冬季封闭等道路本身的情况。出发前一定要看道路信息。'
 ];
 
 /* ---------------- 主流程（浏览器） ---------------- */
@@ -1862,6 +2016,25 @@ function omUrl(model, days, past) {
   const lat = PTS.map(p => p.lat).join(','), lon = PTS.map(p => p.lon).join(','), el = PTS.map(() => 'nan').join(',');
   return `${OM}?latitude=${lat}&longitude=${lon}&elevation=${el}&cell_selection=land&hourly=temperature_2m,precipitation,rain,snowfall,wind_speed_10m,wind_gusts_10m,wind_direction_10m&models=${model}&wind_speed_unit=ms&timezone=Asia%2FTokyo&past_days=${past}&forecast_days=${days}`;
 }
+// 第 4～6 天雪带（R8f、O9f）用的两家全球模式：取法和回测（scripts/backtest_lead.py）一样——同样 9 个点、不加 elevation 和 cell_selection，只要气温和降水
+function farUrl(model) {
+  const pts = FAR_PTS.map(id => PT[id]);
+  return `${OM}?latitude=${pts.map(p => p.lat).join(',')}&longitude=${pts.map(p => p.lon).join(',')}&hourly=temperature_2m,precipitation&models=${model}&timezone=Asia%2FTokyo&forecast_days=7`;
+}
+function compactFar(json) {
+  const arr = Array.isArray(json) ? json : [json];
+  if (arr.length !== FAR_PTS.length) throw new Error(`返回了 ${arr.length} 个点，应为 ${FAR_PTS.length} 个`);
+  return arr.map(o => {
+    const h = o && o.hourly; if (!h || !h.time) return null;
+    const r = x => (x || []).map(v => v == null ? null : Math.round(v * 100) / 100);
+    return { t: h.time.map(omMs), P: r(h.precipitation), T: r(h.temperature_2m) };
+  });
+}
+function parseBandHist(j) {
+  if (!j || !Array.isArray(j.runs)) throw new Error('雪带最近几轮的文件结构和预期不同');
+  return j.runs.map(r => ({ init: Date.parse(r.init_utc), cells: r.cells || {} })).filter(r => isFinite(r.init)).sort((a, b) => a.init - b.init);
+}
+const BAND_HIST_URL = 'https://raw.githubusercontent.com/SHIELD-CAP/hokkaido-winter-route/main/data/latest/band_history.json';
 const ENS_URL = `${OME}?latitude=${ENS_PTS.map(p => p[1]).join(',')}&longitude=${ENS_PTS.map(p => p[2]).join(',')}&elevation=${ENS_PTS.map(() => 'nan').join(',')}&cell_selection=land&hourly=wind_speed_10m,snowfall&models=ecmwf_ifs025&forecast_days=8&wind_speed_unit=ms&timezone=Asia%2FTokyo&temporal_resolution=hourly_6`;
 const JOBS = [
   ['prob016', JMA + 'probability/data/probability/r8/016000.json', parseProb],
@@ -1881,7 +2054,10 @@ const JOBS = [
   ['ifs', omUrl('ecmwf_ifs', 8, 2), compactOM],
   ['ens', ENS_URL, compactEns],
   ['meta_msm', 'https://api.open-meteo.com/data/jma_msm/static/meta.json', compactMeta],
-  ['meta_ifs', 'https://api.open-meteo.com/data/ecmwf_ifs/static/meta.json', compactMeta]
+  ['meta_ifs', 'https://api.open-meteo.com/data/ecmwf_ifs/static/meta.json', compactMeta],
+  ['ifs025', farUrl('ecmwf_ifs025'), compactFar],
+  ['gsm', farUrl('jma_gsm'), compactFar],
+  ['bandhist', BAND_HIST_URL, parseBandHist]
 ];
 function draw(view) { if (root.renderApp) root.renderApp(view); }
 let LAST = null;
