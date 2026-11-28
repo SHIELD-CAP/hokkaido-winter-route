@@ -144,6 +144,13 @@ def main():
             if not (rng[0] <= k < rng[1]):
                 continue
             print(f"\n{ds.month}/{ds.day}({DOW[ds.weekday()]}) D+{k} {LV.get(d['level'], d['level'])} {d.get('headline', '')}" + (f"（缺：{'、'.join(d['missing'])}）" if d.get('missing') else ''))
+            jm = d.get('jma') or {}
+            for fc in (jm.get('forecast') or [])[:4]:
+                print(f"  气象厅预报 {fc.get('area', '')}：{fc.get('zh', '')}" + (f"；{fc['windZh']}" if fc.get('windZh') else ''))
+            for e in (jm.get('early') or [])[:6]:
+                print(f"  早期注意情報 {e.get('area', '')}：{e.get('item', '')}［{e.get('level', '')}］{e.get('period', '')}")
+            if jm.get('earlyNote'):
+                print(f"  早期注意情報：{jm['earlyNote']}")
             sd = next((x for x in state_days if x['date'] == d['date']), None)
             if not sd:
                 sd = {'date': d['date']}

@@ -100,7 +100,8 @@ function slimReasons(rs) { return (rs || []).map(r => ({ level: r.level, rule: r
     routes: V.routes.map(rt => ({
       id: rt.id, short: rt.short,
       days: rt.days.map(d => {
-        const o = { date: d.date, level: d.level, headline: d.headline || '', missing: d.missing || [], reasons: (d.reasons || []).map(r => ({ level: r.level, text: r.text })), notes: d.notes || [] };
+        const o = { date: d.date, level: d.level, headline: d.headline || '', missing: d.missing || [], reasons: (d.reasons || []).map(r => ({ level: r.level, text: r.text })), notes: d.notes || [],
+          jma: d.jma ? { forecast: d.jma.forecast || [], early: d.jma.early || [], earlyNote: d.jma.earlyNote || '' } : null };
         if (d.segments) o.segments = d.segments.map(s => ({ id: s.id, name: s.name, time: s.time, level: s.level, past: !!s.past, reasons: slimReasons(s.reasons), raw: s.raw || [] }));
         if (d.grid) o.grid = { rows: d.grid.rows.map(r => r.id + ' ' + r.name), cols: d.grid.cols, cells: d.grid.cells.map(row => row.map(c => ({ level: c.level, past: !!c.past, reasons: slimReasons(c.reasons), raw: c.raw || [] }))) };
         return o;
